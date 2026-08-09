@@ -2,6 +2,7 @@ IE_BIN_DIR ?= ie/bin
 IE_TARGET ?= $(IE_BIN_DIR)/ab3d2_ie68.ie68
 IE_MAP ?= $(BUILD_DIR)/ie68.map
 IE_SYMBOLS ?= diag_symbols.lua
+IE_DIAG_SYMBOLS_OUT ?= ie/diag_symbols.lua
 IE_ENGINE_SOURCE ?= ../../IntuitionEngine
 IE_ENGINE ?= $(IE_ENGINE_SOURCE)/bin/IntuitionEngine
 ifeq ($(origin IE_HEADLESS_ENGINE),undefined)
@@ -10,6 +11,13 @@ IE_BUILD_HEADLESS ?= 1
 else
 IE_BUILD_HEADLESS ?= 0
 endif
+ifeq ($(origin IE_GAMEPAD_ENGINE),undefined)
+IE_GAMEPAD_ENGINE := $(IE_HEADLESS_ENGINE)
+IE_BUILD_GAMEPAD_ENGINE ?= $(IE_BUILD_HEADLESS)
+else
+IE_BUILD_GAMEPAD_ENGINE ?= 0
+endif
+IE_GAMEPAD_ACCEPTANCE_ENGINE ?= $(IE_ENGINE)
 IE68_REDUX_HIGH ?= $(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68
 IE68_JIT_PROGRESS_SCRIPT ?= $(IE_BIN_DIR)/ab3d2_ie68_guest_progress.ies
 IE_DIAG_SYMBOLS_FILE ?= ie/diag_symbols.txt
@@ -23,6 +31,7 @@ IE_OVERLAY_PREPARE ?= ie/tools/prepare_source_overlay.py
 IE_PATCH_DIR ?= ie/patches
 IE_ENTRY_MAKEFILE ?= ie/Makefile
 IE_OVERDRIVE ?= 0
+IE_GAMEPAD_TEST ?= 0
 MEDIA_PROFILE ?= original
 IE_MEDIA_PROFILE_DIR ?= $(BUILD_DIR)/ie_media/$(MEDIA_PROFILE)
 IE_PROFILE_BUILD_DIR ?= $(BUILD_DIR)/ie/$(MEDIA_PROFILE)
@@ -34,6 +43,13 @@ IE_PROFILE_INCLUDES :=
 IE_MEDIA_PROFILE_STAMP :=
 IE_MEDIA_ROOT := media/
 IE_SOUND_ROOT := media/ab3dsfx/
+
+ifeq ($(IE_GAMEPAD_TEST),1)
+IE_PROFILE_DEFS += -DIE_GAMEPAD_TEST=1
+else ifeq ($(IE_GAMEPAD_TEST),0)
+else
+$(error Unsupported IE_GAMEPAD_TEST=$(IE_GAMEPAD_TEST); use 0 or 1)
+endif
 
 ifneq ($(origin IE_ENABLE_SID_MUSIC),undefined)
 $(error IE_ENABLE_SID_MUSIC is no longer supported; level MOD music is required)
@@ -56,7 +72,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test \
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance \
 	ie-source-overlay ie-patches-check ie-source-overlay-test ie-prose-check
 
 ie68: ie68_sw
@@ -98,6 +114,26 @@ endif
 		echo 'ie68-jit-progress-test: progress script did not complete under the M68K JIT' >&2; exit 1; \
 	}
 
+ie68-gamepad-test:
+ifeq ($(IE_BUILD_GAMEPAD_ENGINE),1)
+	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
+endif
+	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_GAMEPAD_TEST=1 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_gamepad_test.ie68 IE_MAP=$(BUILD_DIR)/ie68_gamepad_test.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_gamepad_test.lua IE_DIAG_SYMBOLS_FILE=ie/diag_gamepad_symbols.txt IE_DIAG_SYMBOLS_OUT=$(IE_BIN_DIR)/diag_gamepad_symbols.lua
+	@cp ie/gamepad_test.ies $(IE_BIN_DIR)/gamepad_test.ies
+	@log=$$(mktemp); result=$(IE_BIN_DIR)/gamepad-test.result; trap 'rm -f "$$log" "$$result"' EXIT; rm -f "$$result"; \
+	if ! IE_NO_IPC=1 $(IE_GAMEPAD_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/gamepad_test.ies $(IE_BIN_DIR)/ab3d2_ie68_gamepad_test.ie68 >"$$log" 2>&1; then \
+		cat "$$log"; exit 1; \
+	fi; \
+	cat "$$log"; \
+	grep -Fq 'AB3D2_GAMEPAD PASS' "$$result" || { \
+		 test ! -f "$$result" || cat "$$result"; \
+		 echo 'ie68-gamepad-test: diagnostic did not report success' >&2; exit 1; \
+	}
+
+ie68-gamepad-acceptance: ie68
+	@cp ie/gamepad_acceptance.ies $(IE_BIN_DIR)/gamepad_acceptance.ies
+	@IE_NO_IPC=1 $(IE_GAMEPAD_ACCEPTANCE_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/gamepad_acceptance.ies $(IE_BIN_DIR)/ab3d2_ie68.ie68
+
 $(IE_MENU_BUILD_DIR)/menu_assets.stamp: menu/back2.raw menu/credits_only.raw menu/font16x16.raw2 menu/back.pal menu/firepal.pal2 menu/font16x16.pal2 ie/tools/convert_menu_assets.py
 	$(info Converting IE menu assets)
 	@python3 ie/tools/convert_menu_assets.py --source menu --out $(IE_MENU_BUILD_DIR)
@@ -136,4 +172,9 @@ ie68_sw: ie-source-overlay $(IE_MENU_BUILD_DIR)/menu_assets.stamp $(IE_UNPACKED_
 		/^  0x[0-9A-Fa-f]+ / { sym = $$2; sub(/:$$/, "", sym); if ((sym in want) && !(sym in seen)) { printf("  %s = %s,\n", sym, $$1); seen[sym] = 1 } } \
 		END { missing = 0; for (i = 1; i <= n; i++) if (!(ordered[i] in seen)) { printf("missing IE diagnostic symbol: %s\n", ordered[i]) > "/dev/stderr"; missing = 1 } print "}"; exit missing }' \
 		$(IE_MAP) > $(IE_SYMBOLS)
-	@cp $(IE_SYMBOLS) ie/diag_symbols.lua
+	@cp $(IE_SYMBOLS) $(IE_DIAG_SYMBOLS_OUT)
+ifeq ($(IE_GAMEPAD_TEST),0)
+	@if grep -Eq 'IE_GAMEPAD_TEST|ie_gamepad_test_' $(IE_MAP); then \
+		echo 'production IE map contains gamepad test-seam symbols' >&2; exit 1; \
+	fi
+endif

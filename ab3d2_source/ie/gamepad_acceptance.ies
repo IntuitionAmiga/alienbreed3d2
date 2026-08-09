@@ -1,0 +1,9 @@
+-- Keep the non-headless IntuitionEngine session alive for manual gamepad
+-- acceptance.  Input is deliberately not synthesised here: every observed
+-- action must come from the real controller, keyboard, or mouse.
+
+sys.print("AB3D2_GAMEPAD_ACCEPTANCE", "ready")
+
+while true do
+    sys.wait_ms(1000)
+end

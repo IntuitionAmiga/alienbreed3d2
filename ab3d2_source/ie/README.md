@@ -332,6 +332,39 @@ still defined in `ie/ie_keymap.i` (mapped to `RAWKEY_DEL`) but the consumer in
 `ie/modules/player.s` is bypassed under `IS_IE`, so the binding is effectively
 dead. Other fixed AB3D2 in-game keys keep their normal raw-key behaviour in IE.
 
+### Game controllers
+
+The IE build reads controller record zero from Intuition Engine's gamepad MMIO
+block. Controller input is active alongside the existing Player 1 keyboard and
+mouse paths because the IE menu exposes key bindings but no legacy joystick
+mode selector. Disconnecting clears controller-generated actions without
+disabling keyboard or captured relative-mouse control. This release does not
+add player-two controller support.
+
+| Controller input | AB3D2 action |
+|------------------|--------------|
+| Left stick Y or D-pad up/down | Forwards/backwards |
+| Left stick X | Step left/right |
+| Right stick X or D-pad left/right | Turn left/right |
+| Right stick Y | Look up/down |
+| A, X, B, Y | Fire, use/open, duck toggle, jump |
+| LB, RB, Start | Run, next weapon, pause |
+
+Axes are digital. They engage at 8192 and release below 6144, providing
+hysteresis around the dead zone. Use, duck, next weapon, and pause continue to
+use the existing AB3D2 edge handling.
+
+`make -f ie/Makefile ie68-gamepad-test` builds a test-only variant whose
+controller reader can consume a guest-RAM snapshot and runs
+`ie/gamepad_test.ies` with the headless Intuition Engine runner by default, so
+the automated target requires no display or physical controller. Production
+builds contain no snapshot input path.
+Real-device results are recorded in `ie/GAMEPAD_ACCEPTANCE.md` using the
+non-headless build. Run `make -f ie/Makefile ie68-gamepad-acceptance` to copy
+the manual acceptance script beside the production `.ie68` binary and launch
+the GUI. The script keeps the engine session alive but does not synthesise any
+input.
+
 IE supplies small platform implementations for game services that are C-backed
 in the Amiga/RTG path. `_Game_AddToInventory`
 (`ie/platform/ie_hires_platform.s:862-884`) updates the assembler inventory layout

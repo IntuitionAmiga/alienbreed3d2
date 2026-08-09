@@ -55,6 +55,24 @@
 	xdef ie_mouse_delta_x_w
 	xdef ie_mouse_left_key_down_b
 	xdef ie_mouse_right_key_down_b
+	xdef ie_gamepad_clear
+	IFD		IE_GAMEPAD_TEST
+	xdef ie_gamepad_test_enable_b
+	xdef ie_gamepad_test_status_l
+	xdef ie_gamepad_test_buttons_l
+	xdef ie_gamepad_test_lxy_l
+	xdef ie_gamepad_test_rxy_l
+	xdef ie_gamepad_actions_w
+	xdef ie_gamepad_axis_state_w
+	xdef ie_gamepad_test_edge_counts_vw
+	xdef ie_gamepad_test_last_actions_w
+	xdef ie_gamepad_test_read_count_l
+	xdef ie_gamepad_test_level_begin_l
+	xdef ie_gamepad_test_plr1_mouse_l
+	xdef ie_gamepad_test_menu_up_l
+	xdef ie_gamepad_test_menu_down_l
+	xdef ie_gamepad_test_menu_wait_l
+	ENDC
 
 	xdef _SysBase
 	xdef _DOSBase
@@ -93,6 +111,18 @@
 	xref _VBlankInterrupt
 	xref forward_key
 	xref backward_key
+	xref turn_left_key
+	xref turn_right_key
+	xref fire_key
+	xref operate_key
+	xref run_key
+	xref sidestep_left_key
+	xref sidestep_right_key
+	xref duck_key
+	xref jump_key
+	xref look_up_key
+	xref look_down_key
+	xref next_weapon_key
 	xref _draw_Palette_vw
 	xref Aud_SampleNum_w
 	xref Aud_SampleList_vl
@@ -121,6 +151,36 @@ MOUSE_BUTTONS	equ	$F0738
 MOUSE_CTRL	equ	$F074C
 MOUSE_DX	equ	$F0754
 MOUSE_DY	equ	$F0758
+GAMEPAD_STATUS	equ	$F25C0
+GAMEPAD_PAD0	equ	$F25D0
+JOY_UP		equ	$00000001
+JOY_DOWN	equ	$00000002
+JOY_LEFT	equ	$00000004
+JOY_RIGHT	equ	$00000008
+JOY_A		equ	$00000010
+JOY_B		equ	$00000020
+JOY_X		equ	$00000040
+JOY_Y		equ	$00000080
+JOY_LB		equ	$00000100
+JOY_RB		equ	$00000200
+JOY_START	equ	$00002000
+IE_GAMEPAD_ENGAGE	equ	8192
+IE_GAMEPAD_RELEASE	equ	6144
+IE_PAD_FORWARD	equ	0
+IE_PAD_BACKWARD	equ	1
+IE_PAD_STEP_LEFT	equ	2
+IE_PAD_STEP_RIGHT	equ	3
+IE_PAD_TURN_LEFT	equ	4
+IE_PAD_TURN_RIGHT	equ	5
+IE_PAD_LOOK_UP	equ	6
+IE_PAD_LOOK_DOWN	equ	7
+IE_PAD_FIRE	equ	8
+IE_PAD_USE	equ	9
+IE_PAD_DUCK	equ	10
+IE_PAD_JUMP	equ	11
+IE_PAD_RUN	equ	12
+IE_PAD_NEXT_WEAPON	equ	13
+IE_PAD_PAUSE	equ	14
 CHUNKY_BASE	equ	$100000
 CHUNKY_BACK_BASE	equ	$113000
 PRESENT_BASE	equ	$126000
@@ -194,6 +254,7 @@ IE_SCANCODE_NONE	equ	$FF
 RAWKEY_CTRL	equ	$63
 RAWKEY_LSHIFT	equ	$60
 RAWKEY_LALT	equ	$64
+RAWKEY_P	equ	$19
 RAWKEY_UP	equ	$4C
 RAWKEY_DOWN	equ	$4D
 IE_MOD_SHIFT	equ	0
@@ -219,9 +280,11 @@ _Sys_Done:
 
 _Sys_ClearKeyboard:
 	lea		_KeyMap_vb,a0
+	lea		ie_keyboard_state_vb,a1
 	move.w	#255,d0
 .clear_keys:
 	clr.b	(a0)+
+	clr.b	(a1)+
 	dbra	d0,.clear_keys
 	clr.b	lastpressed
 .drain_queue:
@@ -265,6 +328,7 @@ ie_run_vblank:
 ie_poll_input:
 	bsr		ie_poll_keyboard
 	bsr		ie_poll_mouse
+	bsr		_ReadJoy1
 	rts
 
 _Sys_MarkTime:
@@ -884,6 +948,9 @@ _Game_AddToInventory:
 	rts
 
 _Game_LevelBegin:
+	IFD		IE_GAMEPAD_TEST
+	addq.l	#1,ie_gamepad_test_level_begin_l
+	ENDC
 	clr.l	ie_menu_active
 	move.l	#1,ie_mouse_relative_ok
 	move.l	#1,MOUSE_CTRL
@@ -988,9 +1055,308 @@ _mnu_dofire:
 	rts
 
 _ReadJoy1:
+	bsr		ie_gamepad_apply
+	IFD		IE_GAMEPAD_TEST
+	addq.l	#1,ie_gamepad_test_read_count_l
+	ENDC
+	rts
 _ReadJoy2:
 	bsr		ie_poll_keyboard
 	rts
+
+; Pad zero is the sole IE controller.  The translator deliberately produces
+; the established AB3D2 logical keys; player code remains the only consumer
+; of use/duck/weapon edge state.
+ie_gamepad_apply:
+	movem.l	d0-d4/a0-a1,-(sp)
+	bsr		ie_gamepad_read_pad0
+	tst.b	d0
+	bne.s		.connected
+	tst.w	ie_gamepad_actions_w
+	bne.s		.clear_disconnected
+	tst.w	ie_gamepad_axis_state_w
+	bne.s		.clear_disconnected
+	tst.w	ie_gamepad_edge_state_w
+	beq		.done
+.clear_disconnected:
+	bsr		ie_gamepad_clear
+	bra		.done
+.connected:
+	lea		_KeyMap_vb,a0
+	move.w	ie_gamepad_lxy_l,d0
+	neg.w	d0
+	moveq	#IE_PAD_FORWARD,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	d0,d3
+	move.l	#JOY_UP,d0
+	bsr		ie_gamepad_button_pressed
+	or.b	d0,d3
+	move.b	d3,d0
+	move.b	forward_key,d1
+	moveq	#IE_PAD_FORWARD,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_lxy_l,d0
+	moveq	#IE_PAD_BACKWARD,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	d0,d3
+	move.l	#JOY_DOWN,d0
+	bsr		ie_gamepad_button_pressed
+	or.b	d0,d3
+	move.b	d3,d0
+	move.b	backward_key,d1
+	moveq	#IE_PAD_BACKWARD,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_lxy_l+2,d0
+	neg.w	d0
+	moveq	#IE_PAD_STEP_LEFT,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	sidestep_left_key,d1
+	moveq	#IE_PAD_STEP_LEFT,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_lxy_l+2,d0
+	moveq	#IE_PAD_STEP_RIGHT,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	sidestep_right_key,d1
+	moveq	#IE_PAD_STEP_RIGHT,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_rxy_l+2,d0
+	neg.w	d0
+	moveq	#IE_PAD_TURN_LEFT,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	d0,d3
+	move.l	#JOY_LEFT,d0
+	bsr		ie_gamepad_button_pressed
+	or.b	d0,d3
+	move.b	d3,d0
+	move.b	turn_left_key,d1
+	moveq	#IE_PAD_TURN_LEFT,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_rxy_l+2,d0
+	moveq	#IE_PAD_TURN_RIGHT,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	d0,d3
+	move.l	#JOY_RIGHT,d0
+	bsr		ie_gamepad_button_pressed
+	or.b	d0,d3
+	move.b	d3,d0
+	move.b	turn_right_key,d1
+	moveq	#IE_PAD_TURN_RIGHT,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_rxy_l,d0
+	neg.w	d0
+	moveq	#IE_PAD_LOOK_UP,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	look_up_key,d1
+	moveq	#IE_PAD_LOOK_UP,d2
+	bsr		ie_gamepad_set_action
+	move.w	ie_gamepad_rxy_l,d0
+	moveq	#IE_PAD_LOOK_DOWN,d1
+	bsr		ie_gamepad_axis_positive
+	move.b	look_down_key,d1
+	moveq	#IE_PAD_LOOK_DOWN,d2
+	bsr		ie_gamepad_set_action
+	move.l	#JOY_A,d0
+	move.b	fire_key,d1
+	moveq	#IE_PAD_FIRE,d2
+	bsr		ie_gamepad_map_button
+	move.l	#JOY_X,d0
+	move.b	operate_key,d1
+	moveq	#IE_PAD_USE,d2
+	bsr		ie_gamepad_map_edge_button
+	move.l	#JOY_B,d0
+	move.b	duck_key,d1
+	moveq	#IE_PAD_DUCK,d2
+	bsr		ie_gamepad_map_edge_button
+	move.l	#JOY_Y,d0
+	move.b	jump_key,d1
+	moveq	#IE_PAD_JUMP,d2
+	bsr		ie_gamepad_map_button
+	move.l	#JOY_LB,d0
+	move.b	run_key,d1
+	moveq	#IE_PAD_RUN,d2
+	bsr		ie_gamepad_map_button
+	move.l	#JOY_RB,d0
+	move.b	next_weapon_key,d1
+	moveq	#IE_PAD_NEXT_WEAPON,d2
+	bsr		ie_gamepad_map_edge_button
+	move.l	#JOY_START,d0
+	move.b	#RAWKEY_P,d1
+	moveq	#IE_PAD_PAUSE,d2
+	bsr		ie_gamepad_map_edge_button
+.done:
+	IFD		IE_GAMEPAD_TEST
+	move.w	ie_gamepad_actions_w,ie_gamepad_test_last_actions_w
+	ENDC
+	movem.l	(sp)+,d0-d4/a0-a1
+	rts
+
+ie_gamepad_read_pad0:
+	IFD		IE_GAMEPAD_TEST
+	tst.b	ie_gamepad_test_enable_b
+	beq.s		.mmio
+	move.l	ie_gamepad_test_status_l,d0
+	btst	#0,d0
+	beq.s		.empty
+	move.l	ie_gamepad_test_buttons_l,ie_gamepad_buttons_l
+	move.l	ie_gamepad_test_lxy_l,ie_gamepad_lxy_l
+	move.l	ie_gamepad_test_rxy_l,ie_gamepad_rxy_l
+	moveq	#1,d0
+	rts
+	ENDC
+.mmio:
+	move.l	GAMEPAD_STATUS,d0
+	btst	#0,d0
+	beq.s		.empty
+	move.l	GAMEPAD_PAD0,ie_gamepad_buttons_l
+	move.l	GAMEPAD_PAD0+4,ie_gamepad_lxy_l
+	move.l	GAMEPAD_PAD0+8,ie_gamepad_rxy_l
+	moveq	#1,d0
+	rts
+.empty:
+	clr.l	ie_gamepad_buttons_l
+	clr.l	ie_gamepad_lxy_l
+	clr.l	ie_gamepad_rxy_l
+	moveq	#0,d0
+	rts
+
+; d0=axis magnitude, d1=direction state bit; returns d0=$ff or zero.
+ie_gamepad_axis_positive:
+	move.w	ie_gamepad_axis_state_w,d4
+	btst	d1,d4
+	beq.s		.idle
+	cmpi.w	#IE_GAMEPAD_RELEASE,d0
+	bge.s		.active
+	bclr	d1,d4
+	move.w	d4,ie_gamepad_axis_state_w
+	bra.s		.inactive
+.idle:
+	cmpi.w	#IE_GAMEPAD_ENGAGE,d0
+	blt.s		.inactive
+	bset	d1,d4
+	move.w	d4,ie_gamepad_axis_state_w
+.active:
+	moveq	#-1,d0
+	rts
+.inactive:
+	moveq	#0,d0
+	rts
+
+; d0=button mask; returns d0=$ff when that bit is pressed.
+ie_gamepad_button_pressed:
+	and.l	ie_gamepad_buttons_l,d0
+	sne		d0
+	rts
+
+; d0=button mask, d1=raw key, d2=owned action bit.
+ie_gamepad_map_button:
+	bsr		ie_gamepad_button_pressed
+	bra		ie_gamepad_set_action
+
+; Use, duck and next-weapon are one press events.  In particular, the
+; AB3D2 duck handler consumes its key, so a held controller button must not
+; recreate it on the next frame.
+ie_gamepad_map_edge_button:
+	bsr		ie_gamepad_button_pressed
+	tst.b	d0
+	beq.s		.released
+	move.w	ie_gamepad_edge_state_w,d3
+	btst	d2,d3
+	bne.s		.held
+	bset	d2,d3
+	move.w	d3,ie_gamepad_edge_state_w
+	IFD		IE_GAMEPAD_TEST
+	lea		ie_gamepad_test_edge_counts_vw,a1
+	addq.w	#1,0(a1,d2.w*2)
+	ENDC
+	moveq	#-1,d0
+	bra		ie_gamepad_set_action
+.held:
+	moveq	#0,d0
+	bra		ie_gamepad_set_action
+.released:
+	move.w	ie_gamepad_edge_state_w,d3
+	bclr	d2,d3
+	move.w	d3,ie_gamepad_edge_state_w
+	moveq	#0,d0
+	bra		ie_gamepad_set_action
+
+; d0=boolean, d1=raw key, d2=owned action bit, a0=KeyMap_vb.
+ie_gamepad_set_action:
+	move.w	ie_gamepad_actions_w,d3
+	tst.b	d0
+	beq.s		.release
+	move.b	#$ff,0(a0,d1.w)
+	bset	d2,d3
+	move.w	d3,ie_gamepad_actions_w
+	rts
+.release:
+	btst	d2,d3
+	beq.s		.done
+	bclr	d2,d3
+	move.w	d3,ie_gamepad_actions_w
+	lea		ie_keyboard_state_vb,a1
+	tst.b	0(a1,d1.w)
+	bne.s		.done
+	clr.b	0(a0,d1.w)
+.done:
+	rts
+
+ie_gamepad_clear:
+	movem.l	d0-d2/a0,-(sp)
+	clr.w	ie_gamepad_axis_state_w
+	clr.w	ie_gamepad_edge_state_w
+	lea		_KeyMap_vb,a0
+	moveq	#0,d0
+	move.b	forward_key,d1
+	moveq	#IE_PAD_FORWARD,d2
+	bsr		ie_gamepad_set_action
+	move.b	backward_key,d1
+	moveq	#IE_PAD_BACKWARD,d2
+	bsr		ie_gamepad_set_action
+	move.b	sidestep_left_key,d1
+	moveq	#IE_PAD_STEP_LEFT,d2
+	bsr		ie_gamepad_set_action
+	move.b	sidestep_right_key,d1
+	moveq	#IE_PAD_STEP_RIGHT,d2
+	bsr		ie_gamepad_set_action
+	move.b	turn_left_key,d1
+	moveq	#IE_PAD_TURN_LEFT,d2
+	bsr		ie_gamepad_set_action
+	move.b	turn_right_key,d1
+	moveq	#IE_PAD_TURN_RIGHT,d2
+	bsr		ie_gamepad_set_action
+	move.b	look_up_key,d1
+	moveq	#IE_PAD_LOOK_UP,d2
+	bsr		ie_gamepad_set_action
+	move.b	look_down_key,d1
+	moveq	#IE_PAD_LOOK_DOWN,d2
+	bsr		ie_gamepad_set_action
+	move.b	fire_key,d1
+	moveq	#IE_PAD_FIRE,d2
+	bsr		ie_gamepad_set_action
+	move.b	operate_key,d1
+	moveq	#IE_PAD_USE,d2
+	bsr		ie_gamepad_set_action
+	move.b	duck_key,d1
+	moveq	#IE_PAD_DUCK,d2
+	bsr		ie_gamepad_set_action
+	move.b	jump_key,d1
+	moveq	#IE_PAD_JUMP,d2
+	bsr		ie_gamepad_set_action
+	move.b	run_key,d1
+	moveq	#IE_PAD_RUN,d2
+	bsr		ie_gamepad_set_action
+	move.b	next_weapon_key,d1
+	moveq	#IE_PAD_NEXT_WEAPON,d2
+	bsr		ie_gamepad_set_action
+	move.b	#RAWKEY_P,d1
+	moveq	#IE_PAD_PAUSE,d2
+	bsr		ie_gamepad_set_action
+	clr.w	ie_gamepad_axis_state_w
+	clr.w	ie_gamepad_edge_state_w
+	movem.l	(sp)+,d0-d2/a0
+	rts
+
 SENDFIRST:
 RECFIRST:
 	rts
@@ -1039,14 +1405,19 @@ ie_poll_keyboard:
 	beq.s	.done
 	btst	#7,d0
 	bne.s	.release
+	lea		ie_keyboard_state_vb,a1
 	move.b	#$FF,0(a0,d1.w)
+	move.b	#$FF,0(a1,d1.w)
 	bsr		ie_keyboard_apply_alias_press
 	move.b	d1,lastpressed
 	bra.s	.done
 .release:
+	lea		ie_keyboard_state_vb,a1
 	clr.b	0(a0,d1.w)
+	clr.b	0(a1,d1.w)
 	bsr		ie_keyboard_apply_alias_release
 .done:
+	lea		ie_keyboard_state_vb,a1
 	move.l	$F0748,d0
 	move.l	d0,d2
 	andi.l	#$0F,d2
@@ -1065,27 +1436,33 @@ ie_poll_keyboard:
 	btst	#IE_MOD_SHIFT,d1
 	beq.s	.mod_shift_done
 	clr.b	RAWKEY_LSHIFT(a0)
+	clr.b	RAWKEY_LSHIFT(a1)
 	bra.s	.mod_shift_done
 .mod_shift_down:
 	sne		RAWKEY_LSHIFT(a0)
+	sne		RAWKEY_LSHIFT(a1)
 .mod_shift_done:
 	btst	#IE_MOD_CTRL,d0
 	bne.s	.mod_ctrl_down
 	btst	#IE_MOD_CTRL,d1
 	beq.s	.mod_ctrl_done
 	clr.b	RAWKEY_CTRL(a0)
+	clr.b	RAWKEY_CTRL(a1)
 	bra.s	.mod_ctrl_done
 .mod_ctrl_down:
 	sne		RAWKEY_CTRL(a0)
+	sne		RAWKEY_CTRL(a1)
 .mod_ctrl_done:
 	btst	#IE_MOD_ALT,d0
 	bne.s	.mod_alt_down
 	btst	#IE_MOD_ALT,d1
 	beq.s	.mod_alt_done
 	clr.b	RAWKEY_LALT(a0)
+	clr.b	RAWKEY_LALT(a1)
 	bra.s	.mod_alt_done
 .mod_alt_down:
 	sne		RAWKEY_LALT(a0)
+	sne		RAWKEY_LALT(a1)
 .mod_alt_done:
 	rts
 
@@ -1099,11 +1476,13 @@ ie_keyboard_apply_alias_press:
 	moveq	#0,d2
 	move.b	forward_key,d2
 	move.b	#$FF,0(a0,d2.w)
+	move.b	#$FF,0(a1,d2.w)
 	rts
 .press_backward:
 	moveq	#0,d2
 	move.b	backward_key,d2
 	move.b	#$FF,0(a0,d2.w)
+	move.b	#$FF,0(a1,d2.w)
 	rts
 
 ie_keyboard_apply_alias_release:
@@ -1116,11 +1495,13 @@ ie_keyboard_apply_alias_release:
 	moveq	#0,d2
 	move.b	forward_key,d2
 	clr.b	0(a0,d2.w)
+	clr.b	0(a1,d2.w)
 	rts
 .release_backward:
 	moveq	#0,d2
 	move.b	backward_key,d2
 	clr.b	0(a0,d2.w)
+	clr.b	0(a1,d2.w)
 	rts
 
 ie_scancode_to_rawkey:
@@ -1231,6 +1612,51 @@ button1:
 ie_next_sfx_channel:
 	dc.b	0
 	dc.b	0
+
+ie_gamepad_buttons_l:
+	dc.l	0
+ie_gamepad_lxy_l:
+	dc.l	0
+ie_gamepad_rxy_l:
+	dc.l	0
+ie_gamepad_actions_w:
+	dc.w	0
+ie_gamepad_axis_state_w:
+	dc.w	0
+
+ie_gamepad_edge_state_w:
+	dc.w	0
+ie_keyboard_state_vb:
+	dcb.b	256,0
+	IFD		IE_GAMEPAD_TEST
+ie_gamepad_test_enable_b:
+	dc.b	0
+	dc.b	0
+ie_gamepad_test_status_l:
+	dc.l	0
+ie_gamepad_test_buttons_l:
+	dc.l	0
+ie_gamepad_test_lxy_l:
+	dc.l	0
+ie_gamepad_test_rxy_l:
+	dc.l	0
+ie_gamepad_test_edge_counts_vw:
+	dcb.w	16,0
+ie_gamepad_test_last_actions_w:
+	dc.w	0
+ie_gamepad_test_read_count_l:
+	dc.l	0
+ie_gamepad_test_level_begin_l:
+	dc.l	0
+ie_gamepad_test_plr1_mouse_l:
+	dc.l	0
+ie_gamepad_test_menu_up_l:
+	dc.l	0
+ie_gamepad_test_menu_down_l:
+	dc.l	0
+ie_gamepad_test_menu_wait_l:
+	dc.l	0
+	ENDC
 
 ie_mouse_relative_ok:
 	dc.l	0

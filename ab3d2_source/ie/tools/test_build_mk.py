@@ -6,9 +6,9 @@ import unittest
 REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
-def dry_run(*assignments: str) -> str:
+def dry_run(*assignments: str, target: str = "ie68-jit-progress-test") -> str:
     result = subprocess.run(
-        ["make", "-f", "ie/Makefile", "-n", *assignments, "ie68-jit-progress-test"],
+        ["make", "-f", "ie/Makefile", "-n", *assignments, target],
         cwd=REPO_ROOT,
         check=True,
         text=True,
@@ -45,6 +45,26 @@ class JITProgressTargetTests(unittest.TestCase):
         self.assertIn("-Fhunk hires.s", output)
         self.assertIn("ie/platform/ie_hires_platform.s", output)
         self.assertNotIn("-Fhunk ie/hires.s", output)
+
+
+class GamepadTargetTests(unittest.TestCase):
+    def test_automated_target_defaults_to_headless_engine(self) -> None:
+        output = dry_run(target="ie68-gamepad-test")
+        self.assertIn("../../IntuitionEngine/bin/ie_headless", output)
+        self.assertNotIn("../../IntuitionEngine/bin/IntuitionEngine --script-owned-term", output)
+
+    def test_manual_acceptance_target_defaults_to_gui_engine(self) -> None:
+        output = dry_run(target="ie68-gamepad-acceptance")
+        self.assertIn("../../IntuitionEngine/bin/IntuitionEngine --script-owned-term", output)
+        self.assertNotIn("../../IntuitionEngine/bin/ie_headless --script-owned-term", output)
+
+    def test_automated_runner_override_skips_sibling_engine_build(self) -> None:
+        output = dry_run(
+            "IE_GAMEPAD_ENGINE=/opt/ie/bin/ie_headless",
+            target="ie68-gamepad-test",
+        )
+        self.assertNotIn("make -C ../../IntuitionEngine headless", output)
+        self.assertIn("/opt/ie/bin/ie_headless --script-owned-term", output)
 
 
 if __name__ == "__main__":

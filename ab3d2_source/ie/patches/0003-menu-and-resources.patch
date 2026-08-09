@@ -25,22 +25,31 @@
  				move.l	(a7)+,a0
  				move.l	a0,-(a7)
  				move.w	(a0),d0
-@@ -503,12 +508,14 @@
- 				tst.b   d0
- 				bne		.down
- 
-+				IFND	IS_IE
- 				move.b	fire_key,d7
- 				move.b	(a5,d7.w),d0
+@@ -508,7 +513,7 @@
  				clr.b   (a5,d7.w)
  				tst.b   d0
  				bne		.cd32
 -.keys:
-+				ENDC
 +	.keys:
  				jsr		key_readkey
  
  				tst.w	d0
+@@ -563,6 +568,7 @@
+ 				moveq.l	#42,d1
+ 				bra.s	.cpcont
+ .cd32:
++				IFND	IS_IE
+ 				clr.b	Plr1_Keys_b
+ 				clr.b	Plr1_Path_b
+ 				clr.b	Plr1_Mouse_b
+@@ -571,6 +577,7 @@
+ 				clr.b	Plr2_Path_b
+ 				clr.b	Plr2_Mouse_b
+ 				st		Plr2_Joystick_b
++				ENDC
+ .quit:
+ 				moveq.l	#0,d1
+ 
 @@ -1941,12 +1948,21 @@
  
  				section	.bsschip,bss_c

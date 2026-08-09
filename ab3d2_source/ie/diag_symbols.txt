@@ -22,6 +22,8 @@ ie_palette_apply_channel
 ie_game_stage
 ie_game_quit_from_stage
 ie_menu_active
+_Game_LevelBegin
+mnu_row
 ie_menu_last_buttons
 Game_ShouldQuit_b
 io_ie_path_vb
