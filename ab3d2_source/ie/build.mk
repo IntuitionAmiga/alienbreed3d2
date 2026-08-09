@@ -2,6 +2,16 @@ IE_BIN_DIR ?= ie/bin
 IE_TARGET ?= $(IE_BIN_DIR)/ab3d2_ie68.ie68
 IE_MAP ?= $(BUILD_DIR)/ie68.map
 IE_SYMBOLS ?= diag_symbols.lua
+IE_ENGINE_SOURCE ?= ../../IntuitionEngine
+IE_ENGINE ?= $(IE_ENGINE_SOURCE)/bin/IntuitionEngine
+ifeq ($(origin IE_HEADLESS_ENGINE),undefined)
+IE_HEADLESS_ENGINE := $(IE_ENGINE_SOURCE)/bin/ie_headless
+IE_BUILD_HEADLESS ?= 1
+else
+IE_BUILD_HEADLESS ?= 0
+endif
+IE68_REDUX_HIGH ?= $(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68
+IE68_JIT_PROGRESS_SCRIPT ?= $(IE_BIN_DIR)/ab3d2_ie68_guest_progress.ies
 IE_DIAG_SYMBOLS_FILE ?= ie/diag_symbols.txt
 IE_DIAG_SYMBOL_NAMES = $(shell cat $(IE_DIAG_SYMBOLS_FILE) 2>/dev/null)
 IE_MENU_BUILD_DIR ?= $(BUILD_DIR)/ie_menu
@@ -41,7 +51,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test
 
 ie68: ie68_sw
 
@@ -56,6 +66,19 @@ ie68-overdrive:
 
 ie68-redux-high:
 	$(MAKE) ie68 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high.map
+
+ie68-jit-progress-test: ie68-redux-high
+ifeq ($(IE_BUILD_HEADLESS),1)
+	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
+endif
+	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) -file-root "$$PWD" -script $(IE68_JIT_PROGRESS_SCRIPT) $(IE68_REDUX_HIGH) >"$$log" 2>&1; then \
+		cat "$$log"; exit 1; \
+	fi; \
+	cat "$$log"; \
+	grep -Fq 'AB3D2_GUEST_PROGRESS mode=jit ' "$$log" || { \
+		echo 'ie68-jit-progress-test: progress script did not complete under the M68K JIT' >&2; exit 1; \
+	}
 
 $(IE_MENU_BUILD_DIR)/menu_assets.stamp: menu/back2.raw menu/credits_only.raw menu/font16x16.raw2 menu/back.pal menu/firepal.pal2 menu/font16x16.pal2 ie/tools/convert_menu_assets.py
 	$(info Converting IE menu assets)
