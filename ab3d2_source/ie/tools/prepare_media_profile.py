@@ -66,7 +66,9 @@ def prepare_redux(repo_root: Path, profile: str, out: Path) -> None:
 
     main_palette = game / "pal"
     if main_palette.is_file():
-        link_file(main_palette, out / "includes" / "256pal")
+        # The renderer embeds Includes/256PAL.  Keep the Redux root palette as
+        # a separate asset: it is not the renderer's palette and has a lifted
+        # black point, so placing it at includes/256pal washes out all lighting.
         link_file(main_palette, out / "pal")
 
     for name in ("boot.dat",):
