@@ -7,12 +7,12 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 
 ## Scope
 
-- Target: full software-renderer build from `ab3d2_source/hires.s`.
-- Platform layer: `ab3d2_source/ie/ie_hires_platform.s`.
+- Target: full software-renderer build from the upstream `ab3d2_source/hires.s`.
+- Platform layer: `ab3d2_source/ie/platform/ie_hires_platform.s`.
 - Binary format: raw `.ie68` linked at `0x001000`.
-- Build target: `make ie68` from `ab3d2_source/`.
-- Overdrive build target: `make ie68-overdrive` from `ab3d2_source/`.
-- Redux convenience target: `make ie68-redux-high` from `ab3d2_source/`.
+- Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
+- Overdrive build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
+- Redux convenience target: `make -f ie/Makefile ie68-redux-high` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
 - Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
 - Raw `.ie68` runtime cwd: run Intuition Engine from `ab3d2_source/` so raw
@@ -29,16 +29,29 @@ that the original code expects are satisfied by IE-specific glue.
 From `ab3d2_source/`:
 
 ```sh
-make ie68               # original profile
-make ie68-overdrive     # Redux high + Overdrive 1920x1080 presentation
-make ie68-redux-high    # Redux high profile
-make ie68-all           # build every variant above
+make -f ie/Makefile ie68               # original profile
+make -f ie/Makefile ie68-overdrive     # Redux high + Overdrive 1920x1080 presentation
+make -f ie/Makefile ie68-redux-high    # Redux high profile
+make -f ie/Makefile ie68-all           # build every variant above
 ```
 
 Each target writes its `.ie68` artifact under `ab3d2_source/ie/bin/`. The map
 file goes under `ab3d2_source/_build/` (per-variant filenames). After each
 link step the diagnostic symbol file `$(IE_SYMBOLS)` is generated from the map
-and copied to `ab3d2_source/ie/diag_symbols.lua`.
+and copied to `ab3d2_source/ie/diag_symbols.lua` for the diagnostic scripts.
+
+### Source boundary
+
+The upstream source tree is never edited for the IE port. `ie/patches/series`
+defines the ordered port patch series, and `ie/tools/prepare_source_overlay.py`
+applies it to `_build/ie-source/` for each build. Files that patches do not
+change are symbolic links to the upstream source. IE-owned assembly includes
+and platform code live in `ie/platform/`.
+
+Use `make -f ie/Makefile ie-patches-check` to dry-run the patch series and
+`make -f ie/Makefile ie-source-overlay-test` to verify the resulting patched
+sources against their reviewed SHA-256 values. See
+[`ie/patches/README.md`](patches/README.md) for patch maintenance.
 
 ### Build flags
 
@@ -61,7 +74,7 @@ artifacts:
 | `IE_MAP` | `$(BUILD_DIR)/ie68.map` | vlink map output path. |
 | `IE_SYMBOLS` | `diag_symbols.lua` | Generated Lua diagnostic symbol file (copied to `ie/diag_symbols.lua` after the link step). |
 | `IE_DIAG_SYMBOLS_FILE` | `ie/diag_symbols.txt` | Plain-text list of symbol names extracted from the map into `IE_SYMBOLS`. |
-| `IE_HIRES_SOURCE` | `ie/hires.s` | `hires.s` source variant assembled for the IE link. |
+| `IE_HIRES_SOURCE` | `$(BUILD_DIR)/ie-source/hires.s` | Patched overlay source assembled for the IE link. |
 | `BUILD_DIR` | `_build` | Root directory for generated files. |
 
 ### Redux/Overdrive prerequisites
@@ -84,8 +97,9 @@ The IE make fragment:
   requested (stamp file: `_build/ie_media/<profile>/.stamp`);
 - writes the selected media-profile include (`media_profile.i`) under
   `_build/ie/<profile>/`;
-- assembles `hires.s` with `-DIS_IE=1`;
-- assembles `ie/ie_hires_platform.s`;
+- creates `_build/ie-source/` from upstream source plus the reviewed patch series;
+- assembles `_build/ie-source/hires.s` with `-DIS_IE=1`;
+- assembles `ie/platform/ie_hires_platform.s`;
 - links the selected `.ie68` target into `$(IE_TARGET)`;
 - writes the selected map file under `_build/` (path: `$(IE_MAP)`);
 - generates `$(IE_SYMBOLS)` from the map by extracting the symbol names listed
@@ -174,7 +188,7 @@ display. The scaled presentation buffers are placed outside the active
 VideoChip front-buffer span so `VIDEO_FB_BASE` presents the bus-backed CLUT8
 pixels written by the scale blitter.
 
-The Overdrive build is selected with `make ie68-overdrive`, which defines
+The Overdrive build is selected with `make -f ie/Makefile ie68-overdrive`, which defines
 `IE_OVERDRIVE=1`, selects `MEDIA_PROFILE=redux-high`, and produces
 `ab3d2_ie68_redux_high_overdrive.ie68` under `ie/bin/`. It keeps the renderer,
 menus, gameplay drawing, palettes, sprites, and bullets at the existing 320x240
@@ -316,11 +330,11 @@ The upstream viewport-size key is disabled in IE because the port forces the
 AB3D2 fullscreen viewport for scaled presentation. `IE_KEY_SCREEN_SIZE` is
 still defined in `ie/ie_keymap.i` (mapped to `RAWKEY_DEL`) but the consumer in
 `ie/modules/player.s` is bypassed under `IS_IE`, so the binding is effectively
-dead. Other fixed AB3D2 in-game keys keep their normal raw-key behavior in IE.
+dead. Other fixed AB3D2 in-game keys keep their normal raw-key behaviour in IE.
 
 IE supplies small platform implementations for game services that are C-backed
 in the Amiga/RTG path. `_Game_AddToInventory`
-(`ie/ie_hires_platform.s:862-884`) updates the assembler inventory layout
+(`ie/platform/ie_hires_platform.s:862-884`) updates the assembler inventory layout
 directly. It walks twelve item words at offset 44 of the player struct
 supplied via `a0` and ORs them with the corresponding source words from `a2`
 (shield, jetpack, weapon-class item flags). It then walks twenty-two
@@ -385,7 +399,7 @@ drive gameplay, sample renderer/audio state and dump framebuffer histograms.
 Build the desired profile first, then run the scripts from `ab3d2_source`:
 
 ```sh
-make ie68-redux-high
+make -f ie/Makefile ie68-redux-high
 ```
 
 Expected diagnostic coverage includes path resolution, render pointers, palette
@@ -439,7 +453,7 @@ disk. `.gitignore` intentionally remains byte-identical to upstream.
   control/runtime flags used by IE input and emulator-sensitive byte writes.
 - `ab3d2_source/hires.s`: contains `IS_IE` include selection and callsite
   guards for IE platform glue, Amiga custom-chip/Paula/CIA paths, IE input,
-  menu, file I/O, music, presentation, pause, and exit-zone behavior.
+  menu, file I/O, music, presentation, pause, and exit-zone behaviour.
 - `ab3d2_source/menu/menunb.s`: under `IS_IE`, uses the IE key-read path and
   skips Amiga fire-button wait logic that depends on custom hardware while
   retaining the menu credits wait loop through the IE WaitTOF path.

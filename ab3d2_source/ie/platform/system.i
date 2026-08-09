@@ -2,7 +2,7 @@
 				output	/system.gs
 
 				include	funcdef.i
-				include	"ie/ie_system.i"
+				include	"ie/platform/ie_system.i"
 
 CALLEXEC		MACRO
 				move.l	#FAKE_LIB_BASE,a6
