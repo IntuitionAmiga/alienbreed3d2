@@ -12,8 +12,7 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 - Binary format: raw `.ie68` linked at `0x001000`.
 - Build target: `make ie68` from `ab3d2_source/`.
 - Overdrive build target: `make ie68-overdrive` from `ab3d2_source/`.
-- Redux convenience targets: `make ie68-redux-high` and
-  `make ie68-redux-low` from `ab3d2_source/`.
+- Redux convenience target: `make ie68-redux-high` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
 - Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
 - Raw `.ie68` runtime cwd: run Intuition Engine from `ab3d2_source/` so raw
@@ -30,13 +29,9 @@ that the original code expects are satisfied by IE-specific glue.
 From `ab3d2_source/`:
 
 ```sh
-make ie68               # original profile, no SID fallback
-make ie68-sid           # original profile, SID fallback
+make ie68               # original profile
 make ie68-overdrive     # Redux high + Overdrive 1920x1080 presentation
-make ie68-redux-high    # Redux high profile, no SID fallback
-make ie68-redux-high-sid
-make ie68-redux-low     # Redux low profile, no SID fallback
-make ie68-redux-low-sid
+make ie68-redux-high    # Redux high profile
 make ie68-all           # build every variant above
 ```
 
@@ -49,14 +44,10 @@ and copied to `ab3d2_source/ie/diag_symbols.lua`.
 
 | Flag | Values | Effect |
 |------|--------|--------|
-| `IE_ENABLE_SID_MUSIC` | `0` (default), `1` | Selects whether missing level MOD music falls back to `ie/at_dooms_gate_e1m1.sid`. |
 | `IE_OVERDRIVE` | `0` (default), `1` | Selects 1920x1080 Overdrive presentation path. The `ie68-overdrive` convenience target pairs it with `MEDIA_PROFILE=redux-high`. |
-| `MEDIA_PROFILE` | `original` (default), `redux-high`, `redux-low` | Selects which prepared media tree the build links against. |
+| `MEDIA_PROFILE` | `original` (default), `redux-high` | Selects which prepared media tree the build links against. |
 
-With `IE_ENABLE_SID_MUSIC=0`, IE still plays the level ProTracker MOD music
-when the GLF database provides one, but missing level music is treated as no
-music. With `IE_ENABLE_SID_MUSIC=1`, missing level MOD music falls back to
-`ie/at_dooms_gate_e1m1.sid`.
+IE plays the level ProTracker MOD music selected by the GLF database.
 
 ### Output overrides
 
@@ -115,15 +106,11 @@ Pre-built `.ie68` binaries are committed in this repository so users can clone
 and run them through an external Intuition Engine binary without first building
 the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 
-| Binary | Profile | SID fallback |
-|--------|---------|--------------|
-| `ab3d2_ie68.ie68` | Original | No |
-| `ab3d2_ie68_sid.ie68` | Original | Yes |
-| `ab3d2_ie68_redux_high.ie68` | Redux high | No |
-| `ab3d2_ie68_redux_high_sid.ie68` | Redux high | Yes |
-| `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive | No |
-| `ab3d2_ie68_redux_low.ie68` | Redux low | No |
-| `ab3d2_ie68_redux_low_sid.ie68` | Redux low | Yes |
+| Binary | Profile |
+|--------|---------|
+| `ab3d2_ie68.ie68` | Original |
+| `ab3d2_ie68_redux_high.ie68` | Redux high |
+| `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive |
 
 ### Packaged runtime binaries
 
@@ -365,8 +352,6 @@ media/
     level_a/
     level_b/
     ...
-ie/
-  at_dooms_gate_e1m1.sid
 ```
 
 Prepare the original media tree from extracted media with:
@@ -377,9 +362,6 @@ ie/tools/normalize_media.sh .
 
 The IE `mt_init` implementation loads the current level MOD from the GLF
 `LevelMusic` entry with the IE file loader and starts it through IE MOD MMIO.
-If no level MOD is available, SID-enabled builds fall back to
-`ie/at_dooms_gate_e1m1.sid` through IE SID playback; default non-SID builds
-treat missing level music as no music.
 
 IE save/load uses the same host file-I/O path. The game keeps the original
 `boot.dat` save format; loading reads the active profile `boot.dat`, and saving
@@ -389,8 +371,6 @@ on-disk save path follows the active media root:
 - Original profile: `media/boot.dat` under the working directory
   (`ab3d2_source/media/boot.dat` for raw `.ie68` runs).
 - Redux high: `_build/ie_media/redux-high/boot.dat` under the working
-  directory.
-- Redux low: `_build/ie_media/redux-low/boot.dat` under the working
   directory.
 
 Packaged runtime builds store progress in the extracted

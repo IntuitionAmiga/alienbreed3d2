@@ -20,28 +20,15 @@ mt_init:
 				bsr		ie_LoadLevelMusic
 				move.l	d0,mt_data
 .have_level_music:
-				beq.s	.try_sid_fallback
+				beq.s	.done
 				move.l	d0,$F0BC0
 				move.l	mt_size,d1
 				tst.l	d1
-				beq.s	.try_sid_fallback
+				beq.s	.done
 				move.l	d1,$F0BC4
 				move.l	#5,$F0BC8
 				clr.b	reachedend
 				rts
-.try_sid_fallback:
-				IFD		IE_ENABLE_SID_MUSIC
-				lea		ie_sid_music_name,a0
-				jsr		IO_LoadFileOptional
-				tst.l	d0
-				beq.s	.done
-				move.l	d0,$F0E20
-				move.l	d1,$F0E24
-				move.l	d1,mt_size
-				move.l	#5,$F0E28
-				clr.b	reachedend
-				rts
-				ENDC
 .done:
 				st		reachedend
 				rts
@@ -59,9 +46,3 @@ reachedend:		dc.b	0
 				align	4
 mt_data:		dc.l	0
 mt_size:		dc.l	0
-
-				IFD		IE_ENABLE_SID_MUSIC
-ie_sid_music_name:
-				dc.b	'ie/at_dooms_gate_e1m1.sid',0
-				even
-				ENDC

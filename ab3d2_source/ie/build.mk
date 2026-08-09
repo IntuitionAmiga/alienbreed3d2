@@ -7,7 +7,6 @@ IE_DIAG_SYMBOL_NAMES = $(shell cat $(IE_DIAG_SYMBOLS_FILE) 2>/dev/null)
 IE_MENU_BUILD_DIR ?= $(BUILD_DIR)/ie_menu
 IE_UNPACKED_MEDIA_DIR ?= $(BUILD_DIR)/ie_unpacked/media
 IE_HIRES_SOURCE ?= ie/hires.s
-IE_ENABLE_SID_MUSIC ?= 0
 IE_OVERDRIVE ?= 0
 MEDIA_PROFILE ?= original
 IE_MEDIA_PROFILE_DIR ?= $(BUILD_DIR)/ie_media/$(MEDIA_PROFILE)
@@ -21,11 +20,8 @@ IE_MEDIA_PROFILE_STAMP :=
 IE_MEDIA_ROOT := media/
 IE_SOUND_ROOT := media/ab3dsfx/
 
-ifeq ($(IE_ENABLE_SID_MUSIC),1)
-IE_PROFILE_DEFS += -DIE_ENABLE_SID_MUSIC=1
-else ifeq ($(IE_ENABLE_SID_MUSIC),0)
-else
-$(error Unsupported IE_ENABLE_SID_MUSIC=$(IE_ENABLE_SID_MUSIC); use 0 or 1)
+ifneq ($(origin IE_ENABLE_SID_MUSIC),undefined)
+$(error IE_ENABLE_SID_MUSIC is no longer supported; level MOD music is required)
 endif
 
 ifeq ($(IE_OVERDRIVE),1)
@@ -41,46 +37,25 @@ IE_PROFILE_INCLUDES += -I$(IE_MEDIA_PROFILE_DIR)/includes
 IE_MEDIA_PROFILE_STAMP := $(IE_MEDIA_PROFILE_DIR)/.stamp
 IE_MEDIA_ROOT := _build/ie_media/redux-high/
 IE_SOUND_ROOT := _build/ie_media/redux-high/soundfx/
-else ifeq ($(MEDIA_PROFILE),redux-low)
-IE_PROFILE_INCLUDES += -I$(IE_MEDIA_PROFILE_DIR)/includes
-IE_MEDIA_PROFILE_STAMP := $(IE_MEDIA_PROFILE_DIR)/.stamp
-IE_MEDIA_ROOT := _build/ie_media/redux-low/
-IE_SOUND_ROOT := _build/ie_media/redux-low/soundfx/
 else
-$(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original, redux-high, or redux-low)
+$(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-sid ie68-overdrive ie68-redux-high ie68-redux-high-sid ie68-redux-low ie68-redux-low-sid
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high
 
 ie68: ie68_sw
 
 ie68-all:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=0 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68.ie68 IE_MAP=$(BUILD_DIR)/ie68.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68.lua
-	$(MAKE) ie68-sid
+	$(MAKE) ie68 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68.ie68 IE_MAP=$(BUILD_DIR)/ie68.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68.lua
 	$(MAKE) ie68-overdrive
 	$(MAKE) ie68-redux-high
-	$(MAKE) ie68-redux-high-sid
-	$(MAKE) ie68-redux-low
-	$(MAKE) ie68-redux-low-sid
 	@cp $(BUILD_DIR)/diag_symbols_ie68.lua ie/diag_symbols.lua
 
-ie68-sid:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=1 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_sid.ie68 IE_MAP=$(BUILD_DIR)/ie68_sid.map
-
 ie68-overdrive:
-	$(MAKE) ie68 IE_OVERDRIVE=1 IE_ENABLE_SID_MUSIC=0 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
+	$(MAKE) ie68 IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
 
 ie68-redux-high:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=0 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high.map
-
-ie68-redux-high-sid:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high_sid.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_sid.map
-
-ie68-redux-low:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=0 MEDIA_PROFILE=redux-low IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_low.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_low.map
-
-ie68-redux-low-sid:
-	$(MAKE) ie68 IE_ENABLE_SID_MUSIC=1 MEDIA_PROFILE=redux-low IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_low_sid.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_low_sid.map
+	$(MAKE) ie68 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high.map
 
 $(IE_MENU_BUILD_DIR)/menu_assets.stamp: menu/back2.raw menu/credits_only.raw menu/font16x16.raw2 menu/back.pal menu/firepal.pal2 menu/font16x16.pal2 ie/tools/convert_menu_assets.py
 	$(info Converting IE menu assets)
@@ -93,11 +68,6 @@ $(IE_UNPACKED_MEDIA_DIR)/.stamp: ie/tools/unpack_sb_assets.py
 $(BUILD_DIR)/ie_media/redux-high/.stamp: ie/tools/prepare_media_profile.py
 	$(info Preparing IE Redux high media profile)
 	@python3 ie/tools/prepare_media_profile.py --profile redux-high --repo-root .. --out $(BUILD_DIR)/ie_media/redux-high
-	@touch $@
-
-$(BUILD_DIR)/ie_media/redux-low/.stamp: ie/tools/prepare_media_profile.py
-	$(info Preparing IE Redux low media profile)
-	@python3 ie/tools/prepare_media_profile.py --profile redux-low --repo-root .. --out $(BUILD_DIR)/ie_media/redux-low
 	@touch $@
 
 ie68_sw: $(IE_MENU_BUILD_DIR)/menu_assets.stamp $(IE_UNPACKED_MEDIA_DIR)/.stamp $(IE_MEDIA_PROFILE_STAMP)

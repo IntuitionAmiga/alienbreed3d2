@@ -52,10 +52,7 @@ def prepare_redux(repo_root: Path, profile: str, out: Path) -> None:
     if not game.is_dir():
         raise SystemExit(f"missing Redux game tree: {game}")
 
-    spec = {
-        "redux-high": "HighSpec",
-        "redux-low": "LowSpec",
-    }[profile]
+    spec = "HighSpec"
 
     reset_dir(out)
     overlay_tree(game / "Includes", out / "includes")
@@ -80,7 +77,7 @@ def prepare_redux(repo_root: Path, profile: str, out: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--profile", choices=("redux-high", "redux-low"), required=True)
+    parser.add_argument("--profile", choices=("redux-high",), required=True)
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
