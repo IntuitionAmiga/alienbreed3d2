@@ -67,5 +67,24 @@ class GamepadTargetTests(unittest.TestCase):
         self.assertIn("/opt/ie/bin/ie_headless --script-owned-term", output)
 
 
+class BlitterTargetTests(unittest.TestCase):
+    def test_automated_target_builds_test_variant_and_runs_headless(self) -> None:
+        output = dry_run(
+            "IE_BUILD_HEADLESS=0",
+            target="ie68-blitter-test",
+        )
+        self.assertIn("IE_BLITTER_TEST=1", output)
+        self.assertIn("ab3d2_ie68_blitter_test.ie68", output)
+        self.assertIn("../../IntuitionEngine/bin/ie_headless --script-owned-term", output)
+        self.assertIn("AB3D2_BLITTER PASS", output)
+
+    def test_production_build_rejects_blitter_test_symbols(self) -> None:
+        output = dry_run(
+            "IE_BUILD_HEADLESS=0",
+            target="ie68",
+        )
+        self.assertIn("production IE map contains blitter test-seam symbols", output)
+
+
 if __name__ == "__main__":
     unittest.main()

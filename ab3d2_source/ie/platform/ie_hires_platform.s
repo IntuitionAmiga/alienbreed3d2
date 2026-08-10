@@ -85,6 +85,14 @@
 	xdef ie_gamepad_test_menu_down_l
 	xdef ie_gamepad_test_menu_wait_l
 	ENDC
+	IFD		IE_BLITTER_TEST
+	xdef ie_blitter_test_fill_count_l
+	xdef ie_blitter_test_copy_count_l
+	xdef ie_blitter_test_error_l
+	xdef ie_blitter_test_command_w
+	xdef ie_blitter_test_done_w
+	xdef ie_blitter_test_scratch_vb
+	ENDC
 
 	xdef _SysBase
 	xdef _DOSBase
@@ -263,8 +271,12 @@ VIDEO_PAL_DATA	equ	$F007C
 VIDEO_COLOR_MODE	equ	$F0080
 VIDEO_FB_BASE	equ	$F0084
 BLT_FLAGS	equ	$F0488
+BLT_STATUS	equ	$F0044
+BLT_OP_FILL	equ	1
 BLT_OP_SCALE	equ	7
+BLT_OP_MEMCOPY	equ	8
 BLT_FLAGS_BPP_CLUT8	equ	1
+BLT_FLAGS_CLUT8_COPY	equ	(3<<4)|BLT_FLAGS_BPP_CLUT8
 BLT_SCALE_DISPLAY	equ	(DISPLAY_HEIGHT<<16)|DISPLAY_WIDTH
 FAKE_LIB_BASE	equ	$6F0000
 FAKE_VEC_BYTES	equ	$0800
@@ -346,6 +358,9 @@ ie_run_vblank:
 	rts
 
 ie_poll_input:
+	IFD		IE_BLITTER_TEST
+	bsr		ie_blitter_test_dispatch
+	ENDC
 	bsr		ie_poll_keyboard
 	bsr		ie_poll_mouse
 	bsr		_ReadJoy1
@@ -777,7 +792,7 @@ _Vid_Present:
 	rts
 
 _Draw_ResetGameDisplay:
-	movem.l	d0-d1/a0,-(sp)
+	movem.l	d0-d3/a0,-(sp)
 	clr.l	ie_menu_active
 	move.l	#1,ie_mouse_relative_ok
 	move.l	#1,MOUSE_CTRL
@@ -788,23 +803,18 @@ _Draw_ResetGameDisplay:
 	clr.b	_Vid_DoubleWidth_b
 	lea		CHUNKY_BASE,a0
 	moveq	#0,d0
-	move.w	#((SCREEN_WIDTH*SCREEN_HEIGHT/4)-1),d1
-.clear_front:
-	move.l	d0,(a0)+
-	dbra	d1,.clear_front
+	move.l	#SCREEN_WIDTH,d0
+	move.l	#SCREEN_HEIGHT,d1
+	move.l	#SCREEN_WIDTH,d2
+	moveq	#0,d3
+	bsr		ie_blt_fill_clut8
 	lea		CHUNKY_BACK_BASE,a0
-	move.w	#((SCREEN_WIDTH*SCREEN_HEIGHT/4)-1),d1
-.clear_back:
-	move.l	d0,(a0)+
-	dbra	d1,.clear_back
+	bsr		ie_blt_fill_clut8
 	lea		PRESENT_BASE,a0
-	move.w	#((SCREEN_WIDTH*SCREEN_HEIGHT/4)-1),d1
-.clear_present:
-	move.l	d0,(a0)+
-	dbra	d1,.clear_present
+	bsr		ie_blt_fill_clut8
 	clr.w	ie_present_index_w
 	move.l	#SCALE_BASE,VIDEO_FB_BASE
-	movem.l	(sp)+,d0-d1/a0
+	movem.l	(sp)+,d0-d3/a0
 	rts
 
 ; Match the original RTG small-screen path: copy the 192x160
@@ -860,21 +870,93 @@ ie_scale_to_display:
 
 	IFD		IE_OVERDRIVE
 ie_overdrive_clear_clut_frame:
-	movem.l	d0-d2/a0,-(sp)
+	movem.l	d0-d3/a0,-(sp)
 	move.l	a1,a0
-	moveq	#0,d0
-	moveq	#6,d2
-.clear_64k_chunks:
-	move.w	#$FFFF,d1
-.clear_64k_loop:
-	move.l	d0,(a0)+
-	dbra	d1,.clear_64k_loop
-	dbra	d2,.clear_64k_chunks
-	move.w	#59647,d1
-.clear_tail:
-	move.l	d0,(a0)+
-	dbra	d1,.clear_tail
-	movem.l	(sp)+,d0-d2/a0
+	move.l	#DISPLAY_WIDTH,d0
+	move.l	#DISPLAY_HEIGHT,d1
+	move.l	#DISPLAY_WIDTH,d2
+	moveq	#0,d3
+	bsr		ie_blt_fill_clut8
+	movem.l	(sp)+,d0-d3/a0
+	rts
+	ENDC
+
+; a0=destination, d0=width, d1=height, d2=destination stride, d3=colour.
+; IEVideo executes synchronously, so the destination is complete on return.
+ie_blt_fill_clut8:
+	move.l	#BLT_OP_FILL,BLT_OP
+	move.l	a0,BLT_DST
+	move.l	d0,BLT_WIDTH
+	move.l	d1,BLT_HEIGHT
+	move.l	d2,BLT_DST_STRIDE
+	move.l	d3,BLT_COLOR
+	move.l	#BLT_FLAGS_BPP_CLUT8,BLT_FLAGS
+	move.l	#1,BLT_CTRL
+	IFD		IE_BLITTER_TEST
+	addq.l	#1,ie_blitter_test_fill_count_l
+	bsr		ie_blt_test_status
+	ENDC
+	rts
+
+; a0=source, a1=destination, d0=byte count.  MEMCOPY is equivalent to
+; the legacy non-overlapping byte loops used by the menu.
+ie_blt_memcopy:
+	move.l	#BLT_OP_MEMCOPY,BLT_OP
+	move.l	a0,BLT_SRC
+	move.l	a1,BLT_DST
+	move.l	d0,BLT_WIDTH
+	move.l	#1,BLT_HEIGHT
+	move.l	d0,BLT_SRC_STRIDE
+	move.l	d0,BLT_DST_STRIDE
+	move.l	#BLT_FLAGS_CLUT8_COPY,BLT_FLAGS
+	move.l	#1,BLT_CTRL
+	IFD		IE_BLITTER_TEST
+	addq.l	#1,ie_blitter_test_copy_count_l
+	bsr		ie_blt_test_status
+	ENDC
+	rts
+
+ie_blt_test_status:
+	IFD		IE_BLITTER_TEST
+	move.l	BLT_STATUS,d0
+	btst	#0,d0
+	beq.s		.ok
+	move.l	d0,ie_blitter_test_error_l
+.ok:
+	ENDC
+	rts
+
+	IFD		IE_BLITTER_TEST
+; IEScript seeds the guarded scratch area and requests one helper operation.
+; This exercises non-trivial dimensions without exposing test state in release.
+ie_blitter_test_dispatch:
+	movem.l	d0-d3/a0-a1,-(sp)
+	move.w	ie_blitter_test_command_w,d0
+	beq.s		.done
+	clr.w	ie_blitter_test_command_w
+	cmpi.w	#1,d0
+	bne.s		.try_copy
+	lea		ie_blitter_test_scratch_vb+16,a0
+	move.l	#17,d0
+	move.l	#3,d1
+	move.l	#23,d2
+	moveq	#0,d3
+	bsr		ie_blt_fill_clut8
+	bra.s		.complete
+.try_copy:
+	cmpi.w	#2,d0
+	bne.s		.bad_command
+	lea		ie_blitter_test_scratch_vb+16,a0
+	lea		ie_blitter_test_scratch_vb+272,a1
+	move.l	#73,d0
+	bsr		ie_blt_memcopy
+	bra.s		.complete
+.bad_command:
+	move.l	#$FFFFFFFF,ie_blitter_test_error_l
+.complete:
+	addq.w	#1,ie_blitter_test_done_w
+.done:
+	movem.l	(sp)+,d0-d3/a0-a1
 	rts
 	ENDC
 
@@ -1259,10 +1341,9 @@ _mnu_dofire:
 	lea		_mnu_morescreen,a0
 	lea		_mnu_morescreen+(3*MENU_PLANESIZE),a1
 	adda.l	d0,a1
-	move.w	#(SCREEN_HEIGHT*MENU_ROW_BYTES)-1,d2
-.copy_fire0:
-	move.b	(a1)+,(a0)+
-	dbra	d2,.copy_fire0
+	exg		a0,a1
+	move.l	#SCREEN_HEIGHT*MENU_ROW_BYTES,d0
+	bsr		ie_blt_memcopy
 	move.w	ie_menu_fire_phase_w,d0
 	addq.w	#5,d0
 	andi.w	#$000F,d0
@@ -1270,10 +1351,9 @@ _mnu_dofire:
 	lea		_mnu_morescreen+MENU_PLANESIZE,a0
 	lea		_mnu_morescreen+(4*MENU_PLANESIZE),a1
 	adda.l	d0,a1
-	move.w	#(SCREEN_HEIGHT*MENU_ROW_BYTES)-1,d2
-.copy_fire1:
-	move.b	(a1)+,(a0)+
-	dbra	d2,.copy_fire1
+	exg		a0,a1
+	move.l	#SCREEN_HEIGHT*MENU_ROW_BYTES,d0
+	bsr		ie_blt_memcopy
 	move.w	ie_menu_fire_phase_w,d0
 	addi.w	#10,d0
 	andi.w	#$000F,d0
@@ -1281,10 +1361,9 @@ _mnu_dofire:
 	lea		_mnu_morescreen+(2*MENU_PLANESIZE),a0
 	lea		_mnu_morescreen+(5*MENU_PLANESIZE),a1
 	adda.l	d0,a1
-	move.w	#(SCREEN_HEIGHT*MENU_ROW_BYTES)-1,d2
-.copy_fire2:
-	move.b	(a1)+,(a0)+
-	dbra	d2,.copy_fire2
+	exg		a0,a1
+	move.l	#SCREEN_HEIGHT*MENU_ROW_BYTES,d0
+	bsr		ie_blt_memcopy
 	clr.b	_mnu_bltbusy
 	movem.l	(sp)+,d0-d2/a0-a1
 	rts
@@ -2003,32 +2082,26 @@ ie_menu_upload_palette_fade:
 	rts
 
 ie_menu_copy_background:
+	movem.l	d0/a0-a1,-(sp)
 	clr.w	ie_menu_scroll_w
 	clr.w	ie_menu_fire_phase_w
 	lea		_mnu_background,a0
 	lea		_mnu_screen,a1
-	move.w	#(MENU_PLANESIZE/4)-1,d7
-.copy_plane0:
-	move.l	(a0)+,(a1)+
-	dbra	d7,.copy_plane0
+	move.l	#MENU_PLANESIZE,d0
+	bsr		ie_blt_memcopy
 	lea		_mnu_background,a0
 	lea		_mnu_screen+MENU_PLANESIZE,a1
-	move.w	#(MENU_PLANESIZE/4)-1,d7
-.copy_plane0_dup:
-	move.l	(a0)+,(a1)+
-	dbra	d7,.copy_plane0_dup
+	move.l	#MENU_PLANESIZE,d0
+	bsr		ie_blt_memcopy
 	lea		_mnu_background+MENU_PLANESIZE,a0
 	lea		_mnu_screen+(2*MENU_PLANESIZE),a1
-	move.w	#(MENU_PLANESIZE/4)-1,d7
-.copy_plane1:
-	move.l	(a0)+,(a1)+
-	dbra	d7,.copy_plane1
+	move.l	#MENU_PLANESIZE,d0
+	bsr		ie_blt_memcopy
 	lea		_mnu_background+MENU_PLANESIZE,a0
 	lea		_mnu_screen+(3*MENU_PLANESIZE),a1
-	move.w	#(MENU_PLANESIZE/4)-1,d7
-.copy_plane1_dup:
-	move.l	(a0)+,(a1)+
-	dbra	d7,.copy_plane1_dup
+	move.l	#MENU_PLANESIZE,d0
+	bsr		ie_blt_memcopy
+	movem.l	(sp)+,d0/a0-a1
 	rts
 
 ie_menu_render_frame:
@@ -2151,6 +2224,20 @@ ie_hud_slots_selected:
 ie_fps_pending_b:
 	dc.b	0
 	cnop	0,4
+	IFD		IE_BLITTER_TEST
+ie_blitter_test_fill_count_l:
+	dc.l	0
+ie_blitter_test_copy_count_l:
+	dc.l	0
+ie_blitter_test_error_l:
+	dc.l	0
+ie_blitter_test_command_w:
+	dc.w	0
+ie_blitter_test_done_w:
+	dc.w	0
+ie_blitter_test_scratch_vb:
+	ds.b	512
+	ENDC
 	IFD		IE_FPS_TEST
 ie_fps_test_force_samples_b:
 	dc.b	0

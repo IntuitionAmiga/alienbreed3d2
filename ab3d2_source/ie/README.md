@@ -188,6 +188,11 @@ display. The scaled presentation buffers are placed outside the active
 VideoChip front-buffer span so `VIDEO_FB_BASE` presents the bus-backed CLUT8
 pixels written by the scale blitter.
 
+The port also uses synchronous VideoChip `FILL` operations for render-buffer
+reset and for the Overdrive presentation-buffer clear. Menu background and
+fire-plane transfers use `MEMCOPY`. Gameplay remains full-screen; the legacy
+small-viewport staging path is not part of this acceleration work.
+
 The Overdrive build is selected with `make -f ie/Makefile ie68-overdrive`, which defines
 `IE_OVERDRIVE=1`, selects `MEDIA_PROFILE=redux-high`, and produces
 `ab3d2_ie68_redux_high_overdrive.ie68` under `ie/bin/`. It keeps the renderer,
@@ -214,8 +219,8 @@ Video:
 | `VIDEO_CTRL` | `0xF0000` | Enable video |
 | `VIDEO_MODE` | `0xF0004` | Set mode `0x00` for 640x480, or `0x06` for Overdrive 1920x1080 |
 | `VIDEO_STATUS` | `0xF0008` | VBlank polling, bit `1` |
-| `BLT_CTRL` | `0xF001C` | Start scale blit |
-| `BLT_OP` | `0xF0020` | `BLT_OP_SCALE` (`7`) for presentation |
+| `BLT_CTRL` | `0xF001C` | Start a synchronous blit |
+| `BLT_OP` | `0xF0020` | `FILL` (`1`), `SCALE` (`7`), or `MEMCOPY` (`8`) |
 | `BLT_SRC` | `0xF0024` | 320x240 CLUT8 source buffer |
 | `BLT_DST` | `0xF0028` | Scaled CLUT8 presentation buffer |
 | `BLT_WIDTH` | `0xF002C` | Source width (`320`) |
@@ -375,6 +380,12 @@ non-headless build. Run `make -f ie/Makefile ie68-gamepad-acceptance` to copy
 the manual acceptance script beside the production `.ie68` binary and launch
 the GUI. The script keeps the engine session alive but does not synthesise any
 input.
+
+`make -f ie/Makefile ie68-blitter-test` builds an Overdrive test variant and
+runs it with the headless engine. The diagnostic checks guarded strided fills,
+odd-sized linear copies, production menu operation counts, blitter status, and
+the full-screen-only display contract. Production maps reject the test command
+dispatcher and scratch memory.
 
 IE supplies small platform implementations for game services that are C-backed
 in the Amiga/RTG path. `_Game_AddToInventory`
