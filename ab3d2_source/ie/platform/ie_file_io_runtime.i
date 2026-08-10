@@ -23,6 +23,13 @@ FILE_IO_DATA_LEN	EQU $00F2208
 FILE_IO_CTRL		EQU $00F220C
 FILE_IO_STATUS		EQU $00F2210
 FILE_IO_LEN			EQU $00F2214
+IE_PACK_HEADER		EQU $00600000
+IE_PACK_DATA_BASE	EQU $01000000
+IE_PACK_DATA_LIMIT	EQU $02000000
+IE_PACK_MAGIC		EQU $41423344
+IE_PACK_MAGIC_2		EQU $50414B31
+IE_PACK_VERSION		EQU 1
+IE_PACK_LOAD_BASE	EQU $00001000
 					ENDC
 
 ; *****************************************************************************
@@ -48,7 +55,7 @@ IO_QueueFile:
 				; d1=ptr to dest. of len.
 				; typeofmem=type of memory
 
-				; todo - just the minimum regs
+				; TODO: save only the required registers.
 				SAVEREGS
 				IFD		IS_IE
 				move.l	a0,a2
@@ -434,7 +441,7 @@ io_PostProcessLoaded:
 				SERPRINTF <"LOAD-DONE",13,10>
 				ENDC
 
-; Not a packed file so just return now.
+; Return after the File MMIO fallback.
 				GETREGS
 
 				move.l	io_BlockStart_l,d0
@@ -605,6 +612,29 @@ io_ie_load_to_heap:
 					move.l	d0,IO_IE_HEAP_PTR
 .have_heap:
 					move.l	d0,d2
+					lea		io_ie_path_vb,a0
+					bsr		io_ie_is_boot_path
+					tst.l	d0
+					beq.s	.try_pack_ie
+					lea		io_ie_save_name(pc),a0
+					move.l	d2,FILE_IO_DATA
+					move.l	a0,FILE_IO_NAME
+					move.l	#1,FILE_IO_CTRL
+					tst.l	FILE_IO_STATUS
+					beq		.loaded_ie
+.try_pack_ie:
+					lea		io_ie_path_vb,a0
+					bsr		io_ie_pack_find
+					tst.l	d0
+					beq.s	.try_file_ie
+					move.l	d0,a0
+					move.l	d2,a1
+					bsr		io_ie_pack_copy
+					tst.l	d0
+					beq		.fail
+					movem.l	(a7)+,d2-d7/a1-a6
+					rts
+.try_file_ie:
 					bsr		io_ie_make_repo_root_build_path
 					tst.l	d0
 					beq.s	.try_parent_media_ie
@@ -678,6 +708,15 @@ io_ie_write_buffer:
 					move.l	d0,d2
 					move.l	d1,d3
 					bsr		io_ie_normalize_name
+					lea		io_ie_path_vb,a0
+					bsr		io_ie_is_boot_path
+					tst.l	d0
+					beq.s	.normal_write_ie
+					lea		io_ie_save_name(pc),a0
+					move.l	a0,d0
+					bsr		.write_candidate_ie
+					bra		.finish_save_write_ie
+.normal_write_ie:
 					bsr		io_ie_make_repo_root_build_path
 					tst.l	d0
 					beq.s	.try_parent_media_write_ie
@@ -712,6 +751,7 @@ io_ie_write_buffer:
 					beq.s	.done_write_ie
 .fail_write_ie:
 					moveq	#1,d0
+.finish_save_write_ie:
 					movem.l	(a7)+,d2-d7/a1-a6
 					rts
 .done_write_ie:
@@ -725,6 +765,263 @@ io_ie_write_buffer:
 					move.l	#2,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d0
 					rts
+
+; Return non-zero when a canonical path ends with /boot.dat or is boot.dat.
+io_ie_is_boot_path:
+				movem.l	d1-d2/a0-a2,-(a7)
+				move.l	a0,a1
+				move.l	a0,a2
+.scan_boot_path:
+				move.b	(a1)+,d1
+				beq.s	.compare_boot_name
+				cmpi.b	#'/',d1
+				bne.s	.scan_boot_path
+				move.l	a1,a2
+				bra.s	.scan_boot_path
+.compare_boot_name:
+				lea		io_ie_boot_name(pc),a1
+.compare_boot_byte:
+				move.b	(a1)+,d1
+				move.b	(a2)+,d2
+				cmp.b	d1,d2
+				bne.s	.not_boot_path
+				tst.b	d1
+				bne.s	.compare_boot_byte
+				moveq	#1,d0
+				bra.s	.boot_path_done
+.not_boot_path:
+				moveq	#0,d0
+.boot_path_done:
+				movem.l	(a7)+,d1-d2/a0-a2
+				rts
+
+; Copy one verified packed asset into the existing file heap.
+; in: a0=source, a1=destination, d1=length
+; out: d0=destination or zero, d1=length
+io_ie_pack_copy:
+				movem.l	d2-d4/a0-a2,-(a7)
+				move.l	d1,d2
+				move.l	d1,d3
+				addq.l	#3,d3
+				andi.l	#$FFFFFFFC,d3
+				move.l	a1,d4
+				add.l	d3,d4
+				bcs.s	.pack_copy_fail
+				cmp.l	#IO_IE_HEAP_LIMIT,d4
+				bhi.s	.pack_copy_fail
+				move.l	a1,d0
+				tst.l	d2
+				beq.s	.pack_copy_done
+.copy_pack_byte:
+				move.b	(a0)+,(a1)+
+				subq.l	#1,d2
+				bne.s	.copy_pack_byte
+.pack_copy_done:
+				move.l	d4,IO_IE_HEAP_PTR
+				movem.l	(a7)+,d2-d4/a0-a2
+				move.l	a1,d0
+				rts
+.pack_copy_fail:
+				movem.l	(a7)+,d2-d4/a0-a2
+				clr.l	d0
+				clr.l	d1
+				rts
+
+; Find a canonical path in the pack loaded as part of the IE68 image.
+; in: a0=path, out: d0=source and d1=length, or both zero.
+io_ie_pack_find:
+				movem.l	d2-d7/a1-a6,-(a7)
+				move.l	a0,a3
+				bsr		io_ie_pack_validate
+				tst.l	d0
+				beq		.pack_find_fail
+				lea		IE_PACK_HEADER,a6
+				move.l	12(a6),d6
+				lea		36(a6),a4
+				move.l	a4,a5
+				add.l	16(a6),a5
+.pack_entry_loop:
+				tst.l	d6
+				beq		.pack_find_fail
+				move.l	a4,d0
+				add.l	#16,d0
+				bcs		.pack_find_fail
+				cmp.l	a5,d0
+				bhi		.pack_find_fail
+				moveq	#0,d2
+				move.w	(a4),d2
+				tst.w	2(a4)
+				bne		.pack_find_fail
+				move.l	a4,d7
+				add.l	#16,d7
+				add.l	d2,d7
+				addq.l	#3,d7
+				andi.l	#$FFFFFFFC,d7
+				cmp.l	a5,d7
+				bhi		.pack_find_fail
+				lea		16(a4),a1
+				move.l	a3,a2
+				move.l	d2,d0
+				beq.s	.path_length_done
+.compare_pack_path:
+				cmpm.b	(a1)+,(a2)+
+				bne.s	.next_pack_entry
+				subq.l	#1,d0
+				bne.s	.compare_pack_path
+.path_length_done:
+				tst.b	(a2)
+				bne.s	.next_pack_entry
+				move.l	4(a4),d3
+				move.l	8(a4),d4
+				move.l	12(a4),d5
+				cmp.l	#IE_PACK_DATA_BASE-IE_PACK_LOAD_BASE,d3
+				blo		.pack_find_fail
+				move.l	d3,d0
+				add.l	d4,d0
+				bcs		.pack_find_fail
+				cmp.l	24(a6),d0
+				bhi		.pack_find_fail
+				move.l	d3,a0
+				add.l	#IE_PACK_LOAD_BASE,a0
+				move.l	d4,d0
+				bsr		io_ie_crc32
+				eor.l	d5,d0
+				tst.l	d0
+				bne		.pack_find_fail
+				move.l	d3,d0
+				add.l	#IE_PACK_LOAD_BASE,d0
+				move.l	d4,d1
+				movem.l	(a7)+,d2-d7/a1-a6
+				rts
+.next_pack_entry:
+				move.l	d7,a4
+				subq.l	#1,d6
+				bra		.pack_entry_loop
+.pack_find_fail:
+				clr.l	d0
+				clr.l	d1
+				movem.l	(a7)+,d2-d7/a1-a6
+				rts
+
+; Validate the fixed header and the complete variable-length table.
+io_ie_pack_validate:
+				movem.l	d1-d7/a0-a2,-(a7)
+				move.l	io_ie_pack_validation_l,d0
+				beq.s	.validate_pack_now
+				bmi		.pack_invalid_cached
+				moveq	#1,d0
+				bra		.pack_validate_done
+.validate_pack_now:
+				moveq	#1,d4
+				lea		IE_PACK_HEADER,a2
+				move.l	(a2),d0
+				eor.l	#IE_PACK_MAGIC,d0
+				tst.l	d0
+				bne		.pack_invalid
+				addq.l	#1,d4
+				move.l	4(a2),d0
+				eor.l	#IE_PACK_MAGIC_2,d0
+				tst.l	d0
+				bne		.pack_invalid
+				addq.l	#1,d4
+				move.l	8(a2),d0
+				eor.l	#IE_PACK_VERSION,d0
+				tst.l	d0
+				bne		.pack_invalid
+				addq.l	#1,d4
+				move.l	12(a2),d6
+				cmp.l	#4096,d6
+				bhi		.pack_invalid
+				addq.l	#1,d4
+				move.l	16(a2),d7
+				cmp.l	#IE_PACK_DATA_BASE-IE_PACK_HEADER-36,d7
+				bhi		.pack_invalid
+				addq.l	#1,d4
+				move.l	20(a2),d0
+				eor.l	#IE_PACK_DATA_BASE-IE_PACK_LOAD_BASE,d0
+				tst.l	d0
+				bne		.pack_invalid
+				addq.l	#1,d4
+				move.l	24(a2),d5
+				cmp.l	20(a2),d5
+				blo		.pack_invalid
+				addq.l	#1,d4
+				cmp.l	#IE_PACK_DATA_LIMIT-IE_PACK_LOAD_BASE,d5
+				bhi		.pack_invalid
+				addq.l	#1,d4
+				move.l	a2,a0
+				moveq	#28,d0
+				bsr		io_ie_crc32
+				move.l	28(a2),d1
+				eor.l	d1,d0
+				tst.l	d0
+				bne		.pack_invalid
+				addq.l	#1,d4
+				lea		36(a2),a0
+				move.l	d7,d0
+				bsr		io_ie_crc32
+				move.l	32(a2),d1
+				eor.l	d1,d0
+				tst.l	d0
+				bne		.pack_invalid
+				clr.l	io_ie_pack_error_l
+				move.l	#1,io_ie_pack_validation_l
+				moveq	#1,d0
+				bra.s	.pack_validate_done
+.pack_invalid:
+				move.l	d4,io_ie_pack_error_l
+				move.l	#-1,io_ie_pack_validation_l
+.pack_invalid_cached:
+				moveq	#0,d0
+.pack_validate_done:
+				movem.l	(a7)+,d1-d7/a0-a2
+				rts
+
+; Calculate the standard CRC-32 used by the packer.
+; in: a0=data, d0=length, out: d0=checksum
+io_ie_crc32:
+				movem.l	d1-d4/a0-a1,-(a7)
+				move.l	d0,d3
+				moveq	#-1,d1
+				lea		io_ie_crc32_nibbles(pc),a1
+				tst.l	d3
+				beq.s	.crc_done_bytes
+.crc_byte:
+				moveq	#0,d2
+				move.b	(a0)+,d2
+				eor.l	d2,d1
+				moveq	#1,d4
+.crc_nibble:
+				move.l	d1,d2
+				andi.l	#$0F,d2
+				lsl.l	#2,d2
+				lsr.l	#4,d1
+				move.l	(a1,d2.l),d2
+				eor.l	d2,d1
+				dbra	d4,.crc_nibble
+				subq.l	#1,d3
+				bne.s	.crc_byte
+.crc_done_bytes:
+				not.l	d1
+				move.l	d1,d0
+				movem.l	(a7)+,d1-d4/a0-a1
+				rts
+
+io_ie_crc32_nibbles:
+				dc.l	$00000000,$1DB71064,$3B6E20C8,$26D930AC
+				dc.l	$76DC4190,$6B6B51F4,$4DB26158,$5005713C
+				dc.l	$EDB88320,$F00F9344,$D6D6A3E8,$CB61B38C
+				dc.l	$9B64C2B0,$86D3D2D4,$A00AE278,$BDBDF21C
+
+io_ie_boot_name:
+				dc.b	'boot.dat',0
+io_ie_save_name:
+				dc.b	'ab3d2-save.dat',0
+				even
+io_ie_pack_error_l:
+				dc.l	0
+io_ie_pack_validation_l:
+				dc.l	0
 
 io_ie_make_unpacked_media_path:
 				lea		io_ie_path_vb,a0

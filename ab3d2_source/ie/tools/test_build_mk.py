@@ -1,3 +1,4 @@
+import os
 import pathlib
 import subprocess
 import unittest
@@ -7,6 +8,14 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[2]
 
 
 def dry_run(*assignments: str, target: str = "ie68-jit-progress-test") -> str:
+    env = os.environ.copy()
+    env.pop("IE_BUILD_HEADLESS", None)
+    env.pop("IE_HEADLESS_ENGINE", None)
+    env.pop("IE_ENGINE_SOURCE", None)
+    env.pop("MAKEFLAGS", None)
+    env.pop("MFLAGS", None)
+    env.pop("MAKEOVERRIDES", None)
+    env.pop("GNUMAKEFLAGS", None)
     result = subprocess.run(
         ["make", "-f", "ie/Makefile", "-n", *assignments, target],
         cwd=REPO_ROOT,
@@ -14,6 +23,7 @@ def dry_run(*assignments: str, target: str = "ie68-jit-progress-test") -> str:
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
+        env=env,
     )
     return result.stdout
 
@@ -103,6 +113,65 @@ class VariantInventoryTests(unittest.TestCase):
         self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
         self.assertNotIn("ie68-redux-high", output)
         self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
+
+
+class PackedImageTargetTests(unittest.TestCase):
+    def test_canonical_overdrive_target_packs_the_advertised_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-overdrive")
+        self.assertIn("ie/tools/pack_ie68.py", output)
+        self.assertIn("_build/ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
+        self.assertIn("ie/bin/ab3d2_ie68_redux_high_overdrive.ie68", output)
+
+    def test_all_variants_target_reaches_the_overdrive_packer(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-all")
+        self.assertIn("ie/tools/pack_ie68.py", output)
+        self.assertIn("_build/ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
+
+    def test_linker_never_writes_the_canonical_overdrive_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-overdrive")
+        self.assertIn(
+            "IE_TARGET=_build/ab3d2_ie68_redux_high_overdrive_raw.ie68",
+            output,
+        )
+        self.assertNotIn(
+            "IE_TARGET=ie/bin/ab3d2_ie68_redux_high_overdrive.ie68",
+            output,
+        )
+
+    def test_packed_target_builds_raw_program_then_packs_prepared_assets(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack")
+        self.assertIn("ab3d2_ie68_redux_high_raw.ie68", output)
+        self.assertIn("ie/tools/pack_ie68.py", output)
+        self.assertIn("_build/ie_media/redux-high", output)
+        self.assertIn("_build/ie_media/redux-high", output)
+        self.assertIn("ab3d2_ie68_redux_high.ie68", output)
+
+    def test_overdrive_pack_has_a_distinct_raw_intermediate(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-overdrive-pack")
+        self.assertIn("ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
+        self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
+        self.assertEqual(output.count("ie/tools/pack_ie68.py"), 1)
+
+    def test_pack_test_runs_format_inventory_and_build_tests(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack-test")
+        self.assertIn("test_pack_ie68.py", output)
+        self.assertIn("test_build_mk.py", output)
+
+    def test_pack_smoke_runs_from_an_isolated_directory_without_file_root(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack-smoke")
+        self.assertIn("mktemp -d", output)
+        self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
+        self.assertNotIn("-file-root", output)
+        self.assertIn("AB3D2_GUEST_PROGRESS", output)
+        self.assertIn("unexpected runtime file", output)
+
+    def test_pack_save_test_proves_external_override_and_embedded_fallback(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack-save-test")
+        self.assertIn("pack_save_smoke.ies", output)
+        self.assertIn("AB3D2_PACK_SAVE PASS", output)
+        self.assertIn("ab3d2-save.dat", output)
+        self.assertIn("rm -f", output)
+        self.assertIn("ab3d2_ie68_guest_progress.ies", output)
 
 
 if __name__ == "__main__":

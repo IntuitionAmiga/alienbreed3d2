@@ -88,7 +88,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-pack ie68-overdrive-pack ie68-pack-test ie68-pack-smoke ie68-pack-save-test ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
 	ie-source-overlay ie-patches-check ie-source-overlay-test ie-prose-check
 
 ie68: ie68_sw
@@ -111,7 +111,48 @@ ie68-all:
 	@cp $(BUILD_DIR)/diag_symbols_ie68.lua ie/diag_symbols.lua
 
 ie68-overdrive:
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
+	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(BUILD_DIR)/ab3d2_ie68_redux_high_overdrive_raw.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
+	python3 ie/tools/pack_ie68.py $(BUILD_DIR)/ab3d2_ie68_redux_high_overdrive_raw.ie68 $(BUILD_DIR)/ie_media/redux-high _build/ie_media/redux-high $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68
+
+ie68-pack:
+	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 MEDIA_PROFILE=redux-high IE_TARGET=$(BUILD_DIR)/ab3d2_ie68_redux_high_raw.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_raw.map
+	python3 ie/tools/pack_ie68.py $(BUILD_DIR)/ab3d2_ie68_redux_high_raw.ie68 $(BUILD_DIR)/ie_media/redux-high _build/ie_media/redux-high $(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68
+
+ie68-overdrive-pack: ie68-overdrive
+	python3 ie/tools/generate_pack_save_smoke.py $(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua ie/pack_save_smoke.ies $(BUILD_DIR)/pack_save_smoke.ies
+
+ie68-pack-test:
+	python3 ie/tools/test_pack_ie68.py
+	python3 ie/tools/test_build_mk.py
+	python3 ie/tools/test_pack_loader_source.py
+	python3 ie/tools/test_generate_pack_save_smoke.py
+
+ie68-pack-smoke: ie68-overdrive-pack
+ifeq ($(IE_BUILD_HEADLESS),1)
+	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
+endif
+	@tmp=$$(mktemp -d /tmp/ab3d2-ie68-pack.XXXXXX); trap 'rm -r "$$tmp"' EXIT; \
+	cp $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 "$$tmp/game.ie68"; \
+	log=$$(mktemp); trap 'rm -f "$$log"; rm -r "$$tmp"' EXIT; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
+	cat "$$log"; \
+	grep -Fq 'AB3D2_GUEST_PROGRESS mode=jit ' "$$log" || { echo 'ie68-pack-smoke: guest progress was not reported' >&2; exit 1; }; \
+	unexpected=$$(find "$$tmp" -mindepth 1 ! -name game.ie68 -print -quit); \
+	test -z "$$unexpected" || { echo "ie68-pack-smoke: unexpected runtime file $$unexpected" >&2; exit 1; }
+
+ie68-pack-save-test: ie68-overdrive-pack
+ifeq ($(IE_BUILD_HEADLESS),1)
+	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
+endif
+	@tmp=$$(mktemp -d /tmp/ab3d2-ie68-save.XXXXXX); log=$$(mktemp); trap 'rm -f "$$log"; rm -r "$$tmp"' EXIT; \
+	cp $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 "$$tmp/game.ie68"; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(BUILD_DIR)/pack_save_smoke.ies "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
+	cat "$$log"; \
+	grep -Fq 'AB3D2_PACK_SAVE PASS' "$$log" || { echo 'ie68-pack-save-test: save override was not proved' >&2; exit 1; }; \
+	test -f "$$tmp/ab3d2-save.dat" || { echo 'ie68-pack-save-test: save file was not created' >&2; exit 1; }; \
+	rm -f "$$tmp/ab3d2-save.dat"; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
+	grep -Fq 'AB3D2_GUEST_PROGRESS mode=jit ' "$$log" || { cat "$$log"; echo 'ie68-pack-save-test: embedded boot fallback did not reach gameplay' >&2; exit 1; }
 
 ie68-jit-progress-test: ie68-overdrive
 ifeq ($(IE_BUILD_HEADLESS),1)

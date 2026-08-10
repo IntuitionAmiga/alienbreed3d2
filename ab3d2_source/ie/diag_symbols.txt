@@ -109,6 +109,9 @@ _KeyMap_vb
 _Sys_MouseY
 ie_poll_input
 io_ie_write_buffer
+io_ie_load_to_heap
+io_ie_pack_find
+io_ie_pack_validate
 plr_MouseControl
 plr_KeyboardControl
 lastpressed

@@ -11,6 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 FILES = (
     ROOT / "ie" / "README.md",
+    ROOT / "ie" / "RELEASE.md",
     ROOT / "ie" / "patches" / "README.md",
     ROOT / "ie" / "Makefile",
     ROOT / "ie" / "build.mk",
@@ -18,6 +19,12 @@ FILES = (
     ROOT / "ie" / "tools" / "prepare_source_overlay.py",
     ROOT / "ie" / "tools" / "test_source_overlay.py",
     ROOT / "ie" / "tools" / "test_build_mk.py",
+    ROOT / "ie" / "tools" / "pack_ie68.py",
+    ROOT / "ie" / "tools" / "test_pack_ie68.py",
+    ROOT / "ie" / "tools" / "test_pack_loader_source.py",
+    ROOT / "ie" / "tools" / "generate_pack_save_smoke.py",
+    ROOT / "ie" / "tools" / "test_generate_pack_save_smoke.py",
+    ROOT / "ie" / "platform" / "ie_file_io_runtime.i",
 )
 FORBIDDEN = {
     "—": "use punctuation rather than an em dash",

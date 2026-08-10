@@ -99,6 +99,8 @@ The IE make fragment:
 - assembles `_build/ie-source/hires.s` with `-DIS_IE=1`;
 - assembles `ie/platform/ie_hires_platform.s`;
 - links the selected `.ie68` target into `$(IE_TARGET)`;
+- packs the selected program and prepared media into the final `.ie68`, with a
+  checksummed index and checksummed asset data;
 - writes the selected map file under `_build/` (path: `$(IE_MAP)`);
 - generates `$(IE_SYMBOLS)` from the map by extracting the symbol names listed
   in `$(IE_DIAG_SYMBOLS_FILE)`, and copies the result to
@@ -121,7 +123,14 @@ the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 | Binary | Profile |
 |--------|---------|
 | `ab3d2_ie68.ie68` | Original |
-| `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive |
+| `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive, packed |
+
+The packed Redux image contains every file needed at runtime. The guest checks
+the pack header, index and selected asset before copying data to its heap. File
+MMIO remains available as a fallback for development images and as the
+persistent save path. The embedded `boot.dat` is the default save state. A host
+file named `ab3d2-save.dat` overrides it when present, and save operations write
+that file without changing the packed image.
 
 ### Packaged runtime binaries
 
@@ -132,13 +141,11 @@ Six platform-specific packaged runtime binaries named
 <https://drive.google.com/file/d/1Jg4A1V_HLtTfFQ3Z1ATE_b2JtkBvMVjv/view>
 
 The zip is not committed to this repository because of its size. These are
-not `.ie68` ROMs: each binary bundles Intuition Engine, the selected
-Karlos-TKG-High AB3D2 IE68 program, and the Karlos-TKG-High asset pack. On
-first launch, the packaged runtime extracts its bundled `_build` asset tree
-beside the executable if it is not already present, uses the executable's
-folder as its working directory, then runs the bundled game. These packaged
-runtimes do not require the original `media/` tree or a `karlos-tkg-main/`
-checkout at runtime. End-user instructions for these binaries live in
+not standalone `.ie68` files: each binary bundles Intuition Engine and the
+packed Karlos-TKG-High AB3D2 IE68 image. The runtime does not extract assets.
+Only `ab3d2-save.dat` may be created beside the executable when the game is
+saved. These packaged runtimes do not require the original `media/` tree or a
+`karlos-tkg-main/` checkout at runtime. End-user instructions live in
 `ab3d2_source/ie/RELEASE.md`.
 
 | Binary | Host |

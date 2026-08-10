@@ -28,7 +28,7 @@ local function counter_delta(before, after)
     return after
 end
 
-sys.wait_ms(500)
+sys.wait_ms(3000)
 local accept = keys.ENTER or keys.RETURN or keys.SPACE
 tap(accept)
 tap(accept)

@@ -18,8 +18,8 @@ These are self-contained runtime distributions, not `.ie68` ROM files. Each
 binary bundles:
 
 - Intuition Engine;
-- the selected Karlos-TKG-High AB3D2 IE68 program;
-- the prepared Karlos-TKG-High asset pack.
+- one packed Karlos-TKG-High AB3D2 IE68 image containing the program and all
+  runtime assets.
 
 The Overdrive binaries bundle the Overdrive IE68 program, start fullscreen, and
 present the existing 320x240 CLUT8 renderer as a full-frame 1920x1080 stretch.
@@ -27,28 +27,20 @@ The Overdrive runtime requires a display capable of 1920x1080. Press
 F11 to drop out of fullscreen into a window if the host desktop is smaller or
 fullscreen is otherwise unwanted.
 
-On first launch, the runtime extracts its bundled asset tree (a directory named
-`ab3d2_source/_build`) beside the executable if it is not already present, uses
-the executable's folder as its working directory, then starts the bundled game.
-The executable's folder must be writable on first launch. The packaged runtimes
-do not require the original `media/` tree, the source repository, or a
-`karlos-tkg-main/` checkout at runtime.
+The runtime reads all game assets directly from the packed image. It does not
+extract or create an asset directory. The packaged runtimes do not require the
+original `media/` tree, the source repository, or a `karlos-tkg-main/` checkout.
 
 ## Running
 
 Run the binary for your host platform directly. No command-line arguments are
-required for the bundled game. Put the binary in a normal writable folder, such
-as your Downloads folder or a games/tools folder in your home directory, before
-first launch. Do not run it from a read-only disk image or any location where
-the executable cannot create files beside itself.
+required for the bundled game. The game can start from a read-only location,
+but its folder must be writable to save progress.
 
-Keep the extracted `ab3d2_source/_build` directory beside the executable after
-first launch; the runtime uses it for game media and saved progress. Saved
-games live inside that directory tree, so back up the whole `ab3d2_source/_build`
-folder if you want to preserve progress. If that directory is deleted, the
-runtime recreates it from the bundled asset pack on the next launch and saved
-progress stored there is lost. If the executable is moved, copy the
-`ab3d2_source/_build` directory beside it in the new location to keep saves.
+Saved progress is stored in `ab3d2-save.dat` beside the executable. Back up that
+file to preserve progress. Move it with the executable when moving the game.
+If it is absent, the packed default `boot.dat` is used and a new save file is
+created only when the game saves.
 
 To quit, close the Intuition Engine window or use the in-game menu's exit
 option.
