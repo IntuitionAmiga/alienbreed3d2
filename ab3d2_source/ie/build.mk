@@ -99,6 +99,7 @@ ie-source-overlay-test:
 
 ie-prose-check:
 	@python3 ie/tools/check_prose.py
+	@python3 ie/tools/test_readme_contract.py
 
 ie68-all:
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68

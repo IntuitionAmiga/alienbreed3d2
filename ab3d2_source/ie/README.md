@@ -9,8 +9,10 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 
 - Target: full software-renderer build from the upstream `ab3d2_source/hires.s`.
 - Platform layer: `ab3d2_source/ie/platform/ie_hires_platform.s`.
-- Binary format: `.ie68` linked at `0x001000`, followed by an indexed runtime
-  asset pack.
+- Binary format: the `.ie68` program is linked at guest address `0x001000`. The
+  pack header is at guest address `0x00600000` (file offset `0x005FF000`), and
+  indexed asset data begins at guest address `0x01000000` (file offset
+  `0x00FFF000`).
 - Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
 - Redux High build target: `make -f ie/Makefile ie68-redux-high` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
@@ -30,15 +32,18 @@ From `ab3d2_source/`:
 
 ```sh
 make -f ie/Makefile ie68               # original profile
-make -f ie/Makefile ie68-redux-high    # Redux High with host fit/stretch presentation
+make -f ie/Makefile ie68-redux-high    # Redux High guest image
 make -f ie/Makefile ie68-all           # build every variant above
 ```
 
-Each target links a raw intermediate under `ab3d2_source/_build/`, then writes
-its packed `.ie68` artifact under `ab3d2_source/ie/bin/`. The map file also
-goes under `ab3d2_source/_build/`. After each link step the diagnostic symbol
-file is generated from the map and copied to `ab3d2_source/ie/diag_symbols.lua`
-for the diagnostic scripts.
+The `ie68` and `ie68-redux-high` targets link raw intermediates under
+`ab3d2_source/_build/`, then write packed `.ie68` artifacts under
+`ab3d2_source/ie/bin/`. The aggregate `ie68-all` target invokes both image
+builds. Their map files also go under `ab3d2_source/_build/`. Standard builds
+generate the diagnostic symbol file from the map and copy it to
+`ab3d2_source/ie/diag_symbols.lua`.
+Specialised diagnostic targets may write profile-specific symbol files under
+`ie/bin/` instead.
 
 ### Source boundary
 
@@ -57,7 +62,7 @@ sources against their reviewed SHA-256 values. See
 
 | Flag | Values | Effect |
 |------|--------|--------|
-| `MEDIA_PROFILE` | `original` (default), `redux-high` | Selects which prepared media tree the build links against. |
+| `MEDIA_PROFILE` | `original` (default), `redux-high` | Selects the original or Redux High guest media paths. |
 
 IE plays the level ProTracker MOD music selected by the GLF database.
 
@@ -71,7 +76,7 @@ artifacts:
 | `IE_BIN_DIR` | `ie/bin` | Directory the `.ie68` artifact is written to. |
 | `IE_TARGET` | `$(IE_BIN_DIR)/ab3d2_ie68.ie68` | Raw linker output used by `ie68-raw` and specialised diagnostic builds. Canonical targets override it with an intermediate under `$(BUILD_DIR)`. |
 | `IE_MAP` | `$(BUILD_DIR)/ie68.map` | vlink map output path. |
-| `IE_SYMBOLS` | `diag_symbols.lua` | Generated Lua diagnostic symbol file (copied to `ie/diag_symbols.lua` after the link step). |
+| `IE_SYMBOLS` | `diag_symbols.lua` | Generated Lua diagnostic symbol file. Standard builds copy it to `ie/diag_symbols.lua`; specialised targets may override the output path. |
 | `IE_DIAG_SYMBOLS_FILE` | `ie/diag_symbols.txt` | Plain-text list of symbol names extracted from the map into `IE_SYMBOLS`. |
 | `IE_HIRES_SOURCE` | `$(BUILD_DIR)/ie-source/hires.s` | Patched overlay source assembled for the IE link. |
 | `BUILD_DIR` | `_build` | Root directory for generated files. |
@@ -92,8 +97,8 @@ The IE make fragment:
 - converts original planar menu art into CLUT8 artifacts under
   `_build/ie_menu/`;
 - unpacks runtime media into `_build/ie_unpacked/media/`;
-- prepares Redux profile media under `_build/ie_media/<profile>/` when
-  requested (stamp file: `_build/ie_media/<profile>/.stamp`);
+- prepares Redux High profile media under `_build/ie_media/redux-high/` when
+  requested (stamp file: `_build/ie_media/redux-high/.stamp`);
 - writes the selected media-profile include (`media_profile.i`) under
   `_build/ie/<profile>/`;
 - creates `_build/ie-source/` from upstream source plus the reviewed patch series;
@@ -104,8 +109,8 @@ The IE make fragment:
   checksummed index and checksummed asset data;
 - writes the selected map file under `_build/` (path: `$(IE_MAP)`);
 - generates `$(IE_SYMBOLS)` from the map by extracting the symbol names listed
-  in `$(IE_DIAG_SYMBOLS_FILE)`, and copies the result to
-  `ie/diag_symbols.lua`.
+  in `$(IE_DIAG_SYMBOLS_FILE)`, then copies it to the configured diagnostic
+  output path.
 
 Generated `_build/` files and `diag_symbols.lua` are build artifacts, not
 source.
@@ -139,13 +144,17 @@ default `boot.dat`; the original build starts without one when no save exists.
 
 Six platform-specific packaged runtime binaries named
 `IntuitionEngine-AB3D2-Karlos-TKG-High-*` are distributed in
-`IntuitionEngine-AB3D2-Karlos-TKG-High.zip` (~450 MB) hosted at:
+`IntuitionEngine-AB3D2-Karlos-TKG-High.zip`. The packaged release documented
+by `ie/RELEASE.md` is Build `202605101918`; the archive is hosted at:
 
 <https://drive.google.com/file/d/1Jg4A1V_HLtTfFQ3Z1ATE_b2JtkBvMVjv/view>
 
-The zip is not committed to this repository because of its size. These are
-not standalone `.ie68` files: each binary bundles Intuition Engine and the
-packed Karlos-TKG-High AB3D2 IE68 image. The runtime does not extract assets.
+The zip is an external release asset and is not committed to this repository
+because of its size. The repository does not verify the archive or its contents,
+and no archive checksum is recorded here. Use a checksum supplied with the
+release to verify the download. The binaries are not standalone `.ie68` files:
+each bundles Intuition Engine and the packed Karlos-TKG-High AB3D2 IE68 image.
+The runtime does not extract assets.
 Only `ab3d2-save.dat` may be created beside the executable when the game is
 saved. These packaged runtimes do not require the original `media/` tree or a
 `karlos-tkg-main/` checkout at runtime. End-user instructions live in
@@ -173,8 +182,10 @@ The current IE software-renderer path uses these fixed addresses:
 | `0x240000` | Primary 640x480 CLUT8 scaled presentation framebuffer for normal IE builds (`SCALE_BASE`) |
 | `0x28B000` | Secondary 640x480 CLUT8 scaled presentation framebuffer for normal IE builds (`SCALE_BACK_BASE`) |
 | `0x6F0000` | Fake library/vector base for compatibility entrypoints |
-| `0x00C00000` | IE file-loader heap base (`ie_sys_heap_ptr` initial value) |
-| `0xFE0000` | IE file-loader heap limit |
+| `0x00700000` | IE file-loader heap base (`IO_IE_HEAP_BASE`) |
+| `0x00FE0000` | IE file-loader and system allocator heap limit |
+| `0x003FFF00` | File-loader heap cursor (`IO_IE_HEAP_PTR`) |
+| `0x00C00000` | System allocator heap cursor initial value (`ie_sys_heap_ptr`) |
 | `0x02800000` | IE menu background/work buffer (`_mnu_screen`) |
 | `0x02840000` | IE menu 8-plane work buffer (`_mnu_morescreen`) |
 
@@ -187,9 +198,9 @@ VideoChip front-buffer span so `VIDEO_FB_BASE` presents the bus-backed CLUT8
 pixels written by the scale blitter.
 
 The port also uses synchronous VideoChip `FILL` operations for render-buffer
-reset. Menu background and
-fire-plane transfers use `MEMCOPY`. Gameplay remains full-screen; the legacy
-small-viewport staging path is not part of this acceleration work.
+reset. Menu background and fire-plane transfers use `MEMCOPY`. Gameplay remains
+full-screen; the legacy small-viewport staging path is not part of this
+acceleration work.
 
 ## MMIO
 
@@ -209,6 +220,7 @@ Video:
 | `BLT_SRC_STRIDE` | `0xF0034` | Source row bytes (`320`) |
 | `BLT_DST_STRIDE` | `0xF0038` | Destination row bytes (`640`) |
 | `BLT_COLOR` | `0xF003C` | Packed destination size `(480 << 16) | 640` |
+| `BLT_STATUS` | `0xF0044` | Blitter status; bit `0` reports an error |
 | `VIDEO_PAL_INDEX` | `0xF0078` | Palette index |
 | `VIDEO_PAL_DATA` | `0xF007C` | Palette RGBA data |
 | `VIDEO_COLOR_MODE` | `0xF0080` | CLUT8 mode (`1`) |
@@ -229,6 +241,20 @@ Input:
 | Mouse DX | `0xF0754` | Signed accumulated relative X delta, clears on read |
 | Mouse DY | `0xF0758` | Signed accumulated relative Y delta, clears on read |
 
+Timing:
+
+| Register | Address | Use |
+|----------|---------|-----|
+| Monotonic microseconds low | `0xF075C` | Lower 32 bits of the monotonic microsecond counter |
+| Monotonic microseconds high | `0xF0760` | Upper 32 bits of the monotonic microsecond counter |
+
+Gamepad:
+
+| Register | Address | Use |
+|----------|---------|-----|
+| Gamepad status | `0xF25C0` | Controller availability; bit `0` means record zero is present |
+| Gamepad record zero | `0xF25D0` | Buttons, left-stick axes, and right-stick axes; each field is 32 bits |
+
 File I/O:
 
 | Register | Address | Use |
@@ -248,7 +274,16 @@ Audio:
 | `0xF0BC4` | MOD file length |
 | `0xF0BC8` | MOD control (`1` start, `2` stop/reset, `4` loop; IE writes `5`) |
 | `0xF0BCC` | MOD status |
-| `0xF0E80+` | IE SFX/sample playback path used by the platform layer |
+| `0xF0BD4` | MOD playback position |
+
+The platform layer uses four legacy SFX channels at `0xF0E80 + channel*0x20`.
+Each channel contains a sample pointer at offset `0x00`, sample length at
+`0x04`, loop pointer at `0x08`, loop length at `0x0C`, sample rate at `0x10`,
+volume at `0x14`, a reserved word at `0x16`, format at `0x18`, and control at
+`0x1C`. IE uses signed 8-bit format (`0`) and writes trigger (`1`) to control;
+the current platform code uses a sample rate of `11025` and four output
+channels. The platform passes `Aud_ChannelPick_b` to the channel selector: zero
+uses round-robin, and non-zero values select one of the four channels.
 
 Runtime control:
 
@@ -266,12 +301,12 @@ opens a CLUT8 IE video mode, uploads palettes through IE video MMIO, and uses
 - the 192x160 game viewport copied into a 320x240 staging buffer.
 
 After presenting the small viewport, the source viewport region is cleared so
-old rows do not smear when the view moves. The v1 IE path forces gameplay into
-AB3D2 fullscreen mode, so the small-viewport path is retained as compatibility
-coverage for older viewport states.
+old rows do not smear when the view moves. The current IE path forces gameplay
+into AB3D2 fullscreen mode, so the small-viewport path is retained as
+compatibility coverage for older viewport states.
 
 Build and script verification should use the freshly built local engine binary
-at `../IntuitionEngine/bin/IntuitionEngine`.
+at `../../IntuitionEngine/bin/IntuitionEngine`.
 
 ## Input And Menus
 
@@ -322,9 +357,10 @@ uses replacement keys for the conflicting fixed in-game AB3D2 controls:
 
 The upstream viewport-size key is disabled in IE because the port forces the
 AB3D2 fullscreen viewport for scaled presentation. `IE_KEY_SCREEN_SIZE` is
-still defined in `ie/ie_keymap.i` (mapped to `RAWKEY_DEL`) but the consumer in
-`ie/modules/player.s` is bypassed under `IS_IE`, so the binding is effectively
-dead. Other fixed AB3D2 in-game keys keep their normal raw-key behaviour in IE.
+still defined in `ie/platform/ie_keymap.i` (mapped to `RAWKEY_DEL`) but the
+consumer in `modules/player.s` in the generated `_build/ie-source/` overlay is
+bypassed under `IS_IE`, so the binding is effectively dead. Other fixed AB3D2
+in-game keys keep their normal raw-key behaviour in IE.
 
 ### Game controllers
 
@@ -366,8 +402,8 @@ the full-screen-only display contract. Production maps reject the test command
 dispatcher and scratch memory.
 
 IE supplies small platform implementations for game services that are C-backed
-in the Amiga/RTG path. `_Game_AddToInventory`
-(`ie/platform/ie_hires_platform.s:862-884`) updates the assembler inventory layout
+in the Amiga/RTG path. `_Game_AddToInventory` in
+`ie/platform/ie_hires_platform.s` updates the assembler inventory layout
 directly. It walks twelve item words at offset 44 of the player struct
 supplied via `a0` and ORs them with the corresponding source words from `a2`
 (shield, jetpack, weapon-class item flags). It then walks twenty-two
@@ -381,8 +417,9 @@ work rather than acting as a stub.
 For raw `.ie68` runs with an external Intuition Engine binary, run from
 `ab3d2_source/`. Intuition Engine's `--media` argument does not currently
 re-root the raw file-I/O MMIO loads used by this port. The packaged
-`IntuitionEngine-AB3D2-Karlos-TKG-High-*` runtimes are different: they extract
-their prepared assets beside the executable and run relative to that directory.
+`IntuitionEngine-AB3D2-Karlos-TKG-High-*` runtimes read the program and assets
+directly from the embedded IE68 image. They do not extract an asset directory
+and do not require the original media tree or Redux checkout.
 
 Expected original-profile paths include:
 
@@ -410,18 +447,13 @@ ie/tools/normalize_media.sh .
 The IE `mt_init` implementation loads the current level MOD from the GLF
 `LevelMusic` entry with the IE file loader and starts it through IE MOD MMIO.
 
-IE save/load uses the same host file-I/O path. The game keeps the original
-`boot.dat` save format; loading reads the active profile `boot.dat`, and saving
-writes the modified save-slot buffer back through `FILE_IO_CTRL=2`. The
-on-disk save path follows the active media root:
-
-- Original profile: `media/boot.dat` under the working directory
-  (`ab3d2_source/media/boot.dat` for raw `.ie68` runs).
-- Redux high: `_build/ie_media/redux-high/boot.dat` under the working
-  directory.
-
-Packaged runtime builds store progress in the extracted
-`ab3d2_source/_build/ie_media/redux-high/boot.dat` tree beside the executable.
+IE save/load uses the same host file-I/O path and keeps the original `boot.dat`
+save format. Redux High packed images contain a default `boot.dat`; the
+original packed image starts without one. When `ab3d2-save.dat` exists in the
+host working directory, it overrides the packed default, and saves are written
+to that file through `FILE_IO_CTRL=2`. Raw development runs may also fall back
+to the relevant `media/boot.dat` when no packed asset is available. Packaged
+runtimes store progress in `ab3d2-save.dat` beside the executable.
 
 ## Redux Diagnostics
 
@@ -429,18 +461,32 @@ The Redux-focused IEScript diagnostics avoid IE function-key mappings by using
 scripted scancodes and direct memory writes to dev flags. The shared Lua helper
 is `ie/diag_redux_common.lua`; local `ie/diag_redux_*.ies` scripts can use it to
 drive gameplay, sample renderer/audio state and dump framebuffer histograms.
-Build the desired profile first, then run the scripts from `ab3d2_source`:
+Build the desired profile first, then run the scripts from `ab3d2_source`. For
+the Redux High scripts, generate matching diagnostic symbols and run the smoke
+script with the headless engine:
 
 ```sh
-make -f ie/Makefile ie68-redux-high
+make -f ie/Makefile ie68-redux-high IE_DIAG_SYMBOLS_OUT=ie/diag_symbols.lua
+../../IntuitionEngine/bin/ie_headless --script-owned-term \
+  -file-root "$PWD" \
+  -script ie/diag_redux_smoke.ies \
+  ie/bin/ab3d2_ie68_redux_high.ie68
 ```
 
+The smoke command above only checks diagnostic-helper loading and a small set of
+startup values. For broader checks, replace `ie/diag_redux_smoke.ies` with the
+appropriate script: `ie/diag_redux_boot.ies`, `ie/diag_redux_bisect.ies`,
+`ie/diag_redux_freeze_watch.ies`, `ie/diag_redux_lighting.ies`,
+`ie/diag_redux_motion_corruption.ies`, `ie/diag_redux_palette.ies`, or
+`ie/diag_redux_watch_ptrs.ies`.
+
 Expected diagnostic coverage includes path resolution, render pointers, palette
-and texture hashes, lighting/debug flags, wall-brightness scratch values,
-framebuffer histograms, freeze/progress sampling, and MOD playback registers.
-The local Redux scripts default to `ab3d2_ie68_redux_high.ie68`. If
-the IEScript host predefines `IE_TARGET` or `TARGET`, that value is loaded
-instead.
+and texture-palette byte dumps, lighting/debug flags, wall-brightness scratch
+values, framebuffer histograms, freeze/progress sampling, and MOD playback
+registers.
+The scripts do not select an image themselves. Pass the image to the engine as
+the final argument, as in the example above, and ensure that
+`ie/diag_symbols.lua` was generated from the same build.
 
 ## Source Boundaries
 
@@ -452,18 +498,18 @@ assumptions.
 Key IE files:
 
 - `build.mk`: IE build targets and generated diagnostics.
-- `ie_keymap.i`: IE-only replacement keys for fixed AB3D2 controls that collide
+- `platform/ie_keymap.i`: IE-only replacement keys for fixed AB3D2 controls that collide
   with IE host shortcuts.
-- `ie_hires_platform.s`: video, input, audio, menu, system, fake-library,
+- `platform/ie_hires_platform.s`: video, input, audio, menu, system, fake-library,
   message, inventory, and zone compatibility entrypoints.
-- `controlloop.s`: IE startup/menu/game outer-loop flow selected by `IS_IE`.
-- `ie_file_io_runtime.i`: embedded-pack loader, File MMIO fallback and media
+- `../controlloop.s`: IE startup/menu/game outer-loop flow selected by `IS_IE`.
+- `platform/ie_file_io_runtime.i`: embedded-pack loader, File MMIO fallback and media
   path normalisation.
-- `ie_music.i`: legacy `mt_*` entrypoints backed by IE MOD MMIO.
+- `platform/ie_music.i`: legacy `mt_*` entrypoints backed by IE MOD MMIO.
 - `tools/normalize_media.sh`: prepares the original local media layout.
 - `tools/convert_menu_assets.py`: converts original planar menu art and
   palettes into IE CLUT8 build artifacts.
-- `tools/prepare_media_profile.py`: prepares Redux high/low media profiles.
+- `tools/prepare_media_profile.py`: prepares the Redux High media profile.
 - `tools/prepare_original_runtime.py`: derives the original runtime inventory
   from its database and available level files.
 - `tools/pack_ie68.py`: builds and inspects deterministic self-contained IE68
@@ -480,7 +526,7 @@ The port keeps IE-specific code under `ab3d2_source/ie/` where possible. These
 files are shared with upstream `mheyer32/alienbreed3d2` and currently differ on
 disk. `.gitignore` intentionally remains byte-identical to upstream.
 
-- `README.md`: documents the IE port at the repository root.
+- `ie/README.md`: documents the IE port.
 - `ab3d2_source/Makefile`: includes `ie/build.mk`. The IE targets themselves
   live in that IE-only make fragment.
 - `ab3d2_source/bss/draw_bss.s`: under `IS_IE`, raises
