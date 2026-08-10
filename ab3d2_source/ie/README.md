@@ -13,11 +13,9 @@ Paula, CIA, or real Amiga custom-chip MMIO.
   asset pack.
 - Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
 - Redux High build target: `make -f ie/Makefile ie68-redux-high` from `ab3d2_source/`.
-- Overdrive build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
-- Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
 - Development-only `ie68-raw` builds use the current working directory for
-  File MMIO assets. Canonical `ie68` and `ie68-overdrive` builds are
+  File MMIO assets. Canonical `ie68` and `ie68-redux-high` builds are
   self-contained.
 - End-user run instructions for the packaged runtime binaries live in
   `ab3d2_source/ie/RELEASE.md`.
@@ -33,7 +31,6 @@ From `ab3d2_source/`:
 ```sh
 make -f ie/Makefile ie68               # original profile
 make -f ie/Makefile ie68-redux-high    # Redux High with host fit/stretch presentation
-make -f ie/Makefile ie68-overdrive     # Redux High + guest-side 1920x1080 presentation
 make -f ie/Makefile ie68-all           # build every variant above
 ```
 
@@ -60,7 +57,6 @@ sources against their reviewed SHA-256 values. See
 
 | Flag | Values | Effect |
 |------|--------|--------|
-| `IE_OVERDRIVE` | `0` (default), `1` | Selects 1920x1080 Overdrive presentation path. The `ie68-overdrive` convenience target pairs it with `MEDIA_PROFILE=redux-high`. |
 | `MEDIA_PROFILE` | `original` (default), `redux-high` | Selects which prepared media tree the build links against. |
 
 IE plays the level ProTracker MOD music selected by the GLF database.
@@ -80,9 +76,9 @@ artifacts:
 | `IE_HIRES_SOURCE` | `$(BUILD_DIR)/ie-source/hires.s` | Patched overlay source assembled for the IE link. |
 | `BUILD_DIR` | `_build` | Root directory for generated files. |
 
-### Redux/Overdrive prerequisites
+### Redux High prerequisites
 
-The Redux High and Overdrive targets require the Redux data checkout at
+The Redux High target requires the Redux data checkout at
 `karlos-tkg-main/` in the `alienbreed3d2` repository root. The expected data
 root is `karlos-tkg-main/Game`, and the build prepares the selected profile
 under `ab3d2_source/_build/ie_media/`. This requirement applies to building the
@@ -129,7 +125,6 @@ the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 |--------|---------|
 | `ab3d2_ie68.ie68` | Original, packed |
 | `ab3d2_ie68_redux_high.ie68` | Redux High, packed |
-| `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive, packed |
 
 All images contain every file needed at runtime. The original build derives a
 201-file runtime inventory from its game database and level set, excluding the
@@ -143,7 +138,7 @@ default `boot.dat`; the original build starts without one when no save exists.
 ### Packaged runtime binaries
 
 Six platform-specific packaged runtime binaries named
-`IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-*` are distributed in
+`IntuitionEngine-AB3D2-Karlos-TKG-High-*` are distributed in
 `IntuitionEngine-AB3D2-Karlos-TKG-High.zip` (~450 MB) hosted at:
 
 <https://drive.google.com/file/d/1Jg4A1V_HLtTfFQ3Z1ATE_b2JtkBvMVjv/view>
@@ -158,12 +153,12 @@ saved. These packaged runtimes do not require the original `media/` tree or a
 
 | Binary | Host |
 |--------|------|
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-amd64` | macOS Intel |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64` | macOS Apple Silicon |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64` | Linux x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-arm64` | Linux ARM64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-amd64.exe` | Windows x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-arm64.exe` | Windows ARM64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-amd64` | macOS Intel |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64` | macOS Apple Silicon |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-amd64` | Linux x86-64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-arm64` | Linux ARM64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-amd64.exe` | Windows x86-64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-arm64.exe` | Windows ARM64 |
 
 ## Memory
 
@@ -180,8 +175,6 @@ The current IE software-renderer path uses these fixed addresses:
 | `0x6F0000` | Fake library/vector base for compatibility entrypoints |
 | `0x00C00000` | IE file-loader heap base (`ie_sys_heap_ptr` initial value) |
 | `0xFE0000` | IE file-loader heap limit |
-| `0x02000000` | Primary 1920x1080 CLUT8 high presentation framebuffer for Overdrive builds (`SCALE_BASE`) |
-| `0x02200000` | Secondary 1920x1080 CLUT8 high presentation framebuffer for Overdrive builds (`SCALE_BACK_BASE`) |
 | `0x02800000` | IE menu background/work buffer (`_mnu_screen`) |
 | `0x02840000` | IE menu 8-plane work buffer (`_mnu_morescreen`) |
 
@@ -194,26 +187,9 @@ VideoChip front-buffer span so `VIDEO_FB_BASE` presents the bus-backed CLUT8
 pixels written by the scale blitter.
 
 The port also uses synchronous VideoChip `FILL` operations for render-buffer
-reset and for the Overdrive presentation-buffer clear. Menu background and
+reset. Menu background and
 fire-plane transfers use `MEMCOPY`. Gameplay remains full-screen; the legacy
 small-viewport staging path is not part of this acceleration work.
-
-The Overdrive build is selected with `make -f ie/Makefile ie68-overdrive`, which defines
-`IE_OVERDRIVE=1`, selects `MEDIA_PROFILE=redux-high`, and produces
-`ab3d2_ie68_redux_high_overdrive.ie68` under `ie/bin/`. It keeps the renderer,
-menus, gameplay drawing, palettes, sprites, and bullets at the existing 320x240
-CLUT8 resolution, loads the Karlos-TKG-High asset profile, then uses
-`BLT_OP_SCALE` to stretch the full source framebuffer to a 1920x1080 CLUT8
-presentation buffer. The Overdrive path intentionally uses every output pixel,
-so it does not preserve the original aspect ratio with letterboxing or
-pillarboxing. It requires an IE runtime that supports `MODE_1920x1080` (`0x06`)
-and high bus-backed CLUT8 framebuffers large enough for two `1920 * 1080`
-buffers. It is presentation upscaling only, not native 1080p rendering.
-
-Overdrive clears the selected 1920x1080 CLUT8 presentation buffer before each
-scale blit. Keep this clear in place: the scaled source is still a 320x240
-software-rendered frame, and stale high-buffer pixels can otherwise show up as
-missing small sprites or corrupted projectile edges.
 
 ## MMIO
 
@@ -222,7 +198,7 @@ Video:
 | Register | Address | Use |
 |----------|---------|-----|
 | `VIDEO_CTRL` | `0xF0000` | Enable video |
-| `VIDEO_MODE` | `0xF0004` | Set mode `0x00` for 640x480, or `0x06` for Overdrive 1920x1080 |
+| `VIDEO_MODE` | `0xF0004` | Set mode `0x00` for 640x480 |
 | `VIDEO_STATUS` | `0xF0008` | VBlank polling, bit `1` |
 | `BLT_CTRL` | `0xF001C` | Start a synchronous blit |
 | `BLT_OP` | `0xF0020` | `FILL` (`1`), `SCALE` (`7`), or `MEMCOPY` (`8`) |
@@ -231,8 +207,8 @@ Video:
 | `BLT_WIDTH` | `0xF002C` | Source width (`320`) |
 | `BLT_HEIGHT` | `0xF0030` | Source height (`240`) |
 | `BLT_SRC_STRIDE` | `0xF0034` | Source row bytes (`320`) |
-| `BLT_DST_STRIDE` | `0xF0038` | Destination row bytes (`640`, or `1920` in Overdrive) |
-| `BLT_COLOR` | `0xF003C` | Packed destination size `(480 << 16) | 640`, or `(1080 << 16) | 1920` in Overdrive |
+| `BLT_DST_STRIDE` | `0xF0038` | Destination row bytes (`640`) |
+| `BLT_COLOR` | `0xF003C` | Packed destination size `(480 << 16) | 640` |
 | `VIDEO_PAL_INDEX` | `0xF0078` | Palette index |
 | `VIDEO_PAL_DATA` | `0xF007C` | Palette RGBA data |
 | `VIDEO_COLOR_MODE` | `0xF0080` | CLUT8 mode (`1`) |
@@ -330,8 +306,8 @@ and remains off by default. When enabled it measures completed gameplay frames
 against Intuition Engine's monotonic microsecond clock, averages the last eight
 samples, and renders the resulting `FPS.tenths` value into the guest 320×240
 framebuffer beside the existing HUD. It is therefore present in screenshots and
-scales with both the standard and Overdrive presentation paths; it is not a
-host status-bar measurement. The counter is intentionally inactive in menus,
+scales with the standard presentation path; it is not a host status-bar
+measurement. The counter is intentionally inactive in menus,
 which do not execute the gameplay frame loop.
 
 The large menu work buffers are absolute high-memory symbols in IE builds, not
@@ -386,8 +362,8 @@ the manual acceptance script beside the production `.ie68` binary and launch
 the GUI. The script keeps the engine session alive but does not synthesise any
 input.
 
-`make -f ie/Makefile ie68-blitter-test` builds an Overdrive test variant and
-runs it with the headless engine. The diagnostic checks guarded strided fills,
+`make -f ie/Makefile ie68-blitter-test` builds a test-only Redux High variant
+and runs it with the headless engine. The diagnostic checks guarded strided fills,
 odd-sized linear copies, production menu operation counts, blitter status, and
 the full-screen-only display contract. Production maps reject the test command
 dispatcher and scratch memory.

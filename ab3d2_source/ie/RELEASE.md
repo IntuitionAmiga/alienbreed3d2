@@ -2,17 +2,17 @@
 
 Build: `202605101918`
 
-This directory contains the Overdrive Karlos-TKG-High packaged builds of Alien
+This directory contains the Karlos-TKG-High packaged builds of Alien
 Breed 3D II for Intuition Engine:
 
 | Binary | Host |
 |--------|------|
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-amd64` | macOS Intel |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64` | macOS Apple Silicon |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64` | Linux x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-arm64` | Linux ARM64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-amd64.exe` | Windows x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-arm64.exe` | Windows ARM64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-amd64` | macOS Intel |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64` | macOS Apple Silicon |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-amd64` | Linux x86-64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-arm64` | Linux ARM64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-amd64.exe` | Windows x86-64 |
+| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-arm64.exe` | Windows ARM64 |
 
 These are self-contained runtime distributions, not `.ie68` ROM files. Each
 binary bundles:
@@ -21,11 +21,8 @@ binary bundles:
 - one packed Karlos-TKG-High AB3D2 IE68 image containing the program and all
   runtime assets.
 
-The Overdrive binaries bundle the Overdrive IE68 program, start fullscreen, and
-present the existing 320x240 CLUT8 renderer as a full-frame 1920x1080 stretch.
-The Overdrive runtime requires a display capable of 1920x1080. Press
-F11 to drop out of fullscreen into a window if the host desktop is smaller or
-fullscreen is otherwise unwanted.
+The binaries bundle the Redux High IE68 program and present its existing
+320x240 CLUT8 renderer through Intuition Engine's host-side display fitting.
 
 The runtime reads all game assets directly from the packed image. It does not
 extract or create an asset directory. The packaged runtimes do not require the
@@ -48,21 +45,14 @@ option.
 On Linux, the binary may need executable permission:
 
 ```sh
-chmod +x ./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64
-./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64
+chmod +x ./IntuitionEngine-AB3D2-Karlos-TKG-High-linux-amd64
+./IntuitionEngine-AB3D2-Karlos-TKG-High-linux-amd64
 ```
 
 The Linux binaries expect a working audio stack (ALSA, PulseAudio, or
 PipeWire) and standard graphics libraries (X11 or Wayland with OpenGL) to be
 present on the host. Most modern desktop distributions provide these by
 default.
-
-For Overdrive on Linux, use the matching Overdrive binary name, for example:
-
-```sh
-chmod +x ./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64
-./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64
-```
 
 Use the matching macOS or Linux binary for your CPU architecture. On Windows,
 run the matching `.exe`.
@@ -75,13 +65,12 @@ quarantine attribute. If macOS refuses to run the binary from Terminal, use
 both commands:
 
 ```sh
-chmod +x ./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64
-xattr -d com.apple.quarantine ./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64
-./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64
+chmod +x ./IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64
+xattr -d com.apple.quarantine ./IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64
+./IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64
 ```
 
-Use `darwin-amd64` instead of `darwin-arm64` on Intel Macs, and insert
-`-Overdrive` in the filename when running an Overdrive package. Removing
+Use `darwin-amd64` instead of `darwin-arm64` on Intel Macs. Removing
 quarantine is a local trust override; do it only for binaries obtained from a
 trusted source.
 
@@ -92,7 +81,7 @@ after `xattr -d com.apple.quarantine`. Two fallbacks:
   then confirm at the warning dialog. macOS records the per-app override and
   Terminal launches succeed afterwards.
 - If quarantine returns or extra attributes remain, run
-  `xattr -cr ./IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64` to clear all
+  `xattr -cr ./IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64` to clear all
   extended attributes recursively.
 
 ## Windows SmartScreen
@@ -104,8 +93,8 @@ time an unsigned `.exe` is launched. Two ways through it:
 - From PowerShell, unblock the file before launch:
 
 ```powershell
-Unblock-File .\IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-amd64.exe
-.\IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-windows-amd64.exe
+Unblock-File .\IntuitionEngine-AB3D2-Karlos-TKG-High-windows-amd64.exe
+.\IntuitionEngine-AB3D2-Karlos-TKG-High-windows-amd64.exe
 ```
 
 Bypassing SmartScreen is a local trust override; do it only for binaries
@@ -136,7 +125,7 @@ F10 hard reset reboots the bundled IE68 program from scratch and discards any
 unsaved in-game progress. Use the in-game save option before pressing F10 if
 you want to keep the current run.
 
-F11 toggles between fullscreen and windowed display. Overdrive packages start
+F11 toggles between fullscreen and windowed display. Packaged builds start
 fullscreen; press F11 once to drop to a window.
 
 Because F9 is reserved by Intuition Engine, this build uses Backtick for the

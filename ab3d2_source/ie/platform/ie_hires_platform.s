@@ -212,22 +212,12 @@ IE_PAD_PAUSE	equ	14
 CHUNKY_BASE	equ	$100000
 CHUNKY_BACK_BASE	equ	$113000
 PRESENT_BASE	equ	$126000
-	IFD		IE_OVERDRIVE
-SCALE_BASE	equ	$02000000
-SCALE_BACK_BASE	equ	$02200000
-	ELSE
 SCALE_BASE	equ	$240000
 SCALE_BACK_BASE	equ	$28B000
-	ENDC
 SCREEN_WIDTH	equ	320
 SCREEN_HEIGHT	equ	240
-	IFD		IE_OVERDRIVE
-DISPLAY_WIDTH	equ	1920
-DISPLAY_HEIGHT	equ	1080
-	ELSE
 DISPLAY_WIDTH	equ	640
 DISPLAY_HEIGHT	equ	480
-	ENDC
 MENU_ROW_BYTES	equ	40
 MENU_PLANE_HEIGHT	equ	256
 MENU_PLANESIZE	equ	MENU_ROW_BYTES*MENU_PLANE_HEIGHT
@@ -249,12 +239,7 @@ IE_HUD_DIGIT_BYTES	equ	8*7*10
 IE_HUD_SLOT_BYTES	equ	8*5*10
 MODE_640x480	equ	$00
 MODE_320x240	equ	$05
-MODE_1920x1080	equ	$06
-	IFD		IE_OVERDRIVE
-IE_VIDEO_MODE	equ	MODE_1920x1080
-	ELSE
 IE_VIDEO_MODE	equ	MODE_640x480
-	ENDC
 VIDEO_CTRL	equ	$F0000
 VIDEO_MODE	equ	$F0004
 BLT_CTRL	equ	$F001C
@@ -850,9 +835,6 @@ ie_scale_to_display:
 	beq.s	.have_target
 	lea		SCALE_BACK_BASE,a1
 .have_target:
-	IFD		IE_OVERDRIVE
-	bsr		ie_overdrive_clear_clut_frame
-	ENDC
 	move.l	#BLT_OP_SCALE,BLT_OP
 	move.l	a0,BLT_SRC
 	move.l	a1,BLT_DST
@@ -867,19 +849,6 @@ ie_scale_to_display:
 	eori.w	#1,ie_present_index_w
 	movem.l	(sp)+,d0/a1
 	rts
-
-	IFD		IE_OVERDRIVE
-ie_overdrive_clear_clut_frame:
-	movem.l	d0-d3/a0,-(sp)
-	move.l	a1,a0
-	move.l	#DISPLAY_WIDTH,d0
-	move.l	#DISPLAY_HEIGHT,d1
-	move.l	#DISPLAY_WIDTH,d2
-	moveq	#0,d3
-	bsr		ie_blt_fill_clut8
-	movem.l	(sp)+,d0-d3/a0
-	rts
-	ENDC
 
 ; a0=destination, d0=width, d1=height, d2=destination stride, d3=colour.
 ; IEVideo executes synchronously, so the destination is complete on return.

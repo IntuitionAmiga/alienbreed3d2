@@ -84,7 +84,7 @@ for _ = 1, 500 do
 end
 
 if menu_active == 0 then fail("menu did not become active") end
-if fill_count < 1 then fail("Overdrive presentation clear did not use the blitter") end
+if fill_count < 1 then fail("display reset did not use the blitter") end
 if copy_count < 7 then fail("menu background/fire copies did not use the blitter") end
 if blit_error ~= 0 then
     fail("BLT_STATUS error " .. string.format("$%08X", blit_error))

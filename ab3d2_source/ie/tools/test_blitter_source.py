@@ -42,14 +42,8 @@ class BlitterMigrationSourceTests(unittest.TestCase):
         self.assertEqual(body.count("bsr\t\tie_blt_fill_clut8"), 3)
         self.assertNotIn("dbra", body)
 
-    def test_overdrive_clear_is_one_hardware_fill(self) -> None:
-        body = routine(
-            self.source,
-            "ie_overdrive_clear_clut_frame",
-            "ie_blt_fill_clut8",
-        )
-        self.assertEqual(body.count("bsr\t\tie_blt_fill_clut8"), 1)
-        self.assertNotIn("dbra", body)
+    def test_source_contains_no_retired_high_resolution_path(self) -> None:
+        self.assertNotIn("over" + "drive", self.source.lower())
 
     def test_menu_background_uses_four_hardware_copies(self) -> None:
         body = routine(self.source, "ie_menu_copy_background", "ie_menu_render_frame")

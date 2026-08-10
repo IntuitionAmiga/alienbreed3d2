@@ -32,7 +32,6 @@ IE_HIRES_SOURCE ?= $(IE_SOURCE_OVERLAY)/hires.s
 IE_OVERLAY_PREPARE ?= ie/tools/prepare_source_overlay.py
 IE_PATCH_DIR ?= ie/patches
 IE_ENTRY_MAKEFILE ?= ie/Makefile
-IE_OVERDRIVE ?= 0
 IE_GAMEPAD_TEST ?= 0
 IE_FPS_TEST ?= 0
 IE_BLITTER_TEST ?= 0
@@ -73,13 +72,6 @@ ifneq ($(origin IE_ENABLE_SID_MUSIC),undefined)
 $(error IE_ENABLE_SID_MUSIC is no longer supported; level MOD music is required)
 endif
 
-ifeq ($(IE_OVERDRIVE),1)
-IE_PROFILE_DEFS += -DIE_OVERDRIVE=1
-else ifeq ($(IE_OVERDRIVE),0)
-else
-$(error Unsupported IE_OVERDRIVE=$(IE_OVERDRIVE); use 0 or 1)
-endif
-
 ifeq ($(MEDIA_PROFILE),original)
 else ifeq ($(MEDIA_PROFILE),redux-high)
 IE_PROFILE_INCLUDES += -I$(IE_MEDIA_PROFILE_DIR)/includes
@@ -90,7 +82,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68-raw ie68_sw ie68-all ie68-redux-high ie68-overdrive ie68-pack ie68-overdrive-pack ie68-pack-test ie68-pack-smoke ie68-pack-save-test ie68-original-pack-smoke ie68-original-pack-save-test ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
+.PHONY: ie68 ie68-raw ie68_sw ie68-all ie68-redux-high ie68-pack ie68-pack-test ie68-pack-smoke ie68-pack-save-test ie68-original-pack-smoke ie68-original-pack-save-test ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
 	ie-source-overlay ie-patches-check ie-source-overlay-test ie-prose-check
 
 ie68:
@@ -115,21 +107,13 @@ ie-prose-check:
 ie68-all:
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-redux-high
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-overdrive
 	@cp $(BUILD_DIR)/diag_symbols_ie68.lua ie/diag_symbols.lua
 
 ie68-redux-high:
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-raw MEDIA_PROFILE=redux-high IE_TARGET=$(BUILD_DIR)/ab3d2_ie68_redux_high_raw.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high.lua
 	python3 ie/tools/pack_ie68.py $(BUILD_DIR)/ab3d2_ie68_redux_high_raw.ie68 $(BUILD_DIR)/ie_media/redux-high _build/ie_media/redux-high $(IE68_REDUX_HIGH)
 
-ie68-overdrive:
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-raw IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(BUILD_DIR)/ab3d2_ie68_redux_high_overdrive_raw.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
-	python3 ie/tools/pack_ie68.py $(BUILD_DIR)/ab3d2_ie68_redux_high_overdrive_raw.ie68 $(BUILD_DIR)/ie_media/redux-high _build/ie_media/redux-high $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68
-
 ie68-pack: ie68
-
-ie68-overdrive-pack: ie68-overdrive
-	python3 ie/tools/generate_pack_save_smoke.py $(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua ie/pack_save_smoke.ies $(BUILD_DIR)/pack_save_smoke.ies
 
 ie68-pack-test:
 	python3 ie/tools/test_pack_ie68.py
@@ -138,31 +122,32 @@ ie68-pack-test:
 	python3 ie/tools/test_generate_pack_save_smoke.py
 	python3 ie/tools/test_prepare_original_runtime.py
 
-ie68-pack-smoke: ie68-overdrive-pack
+ie68-pack-smoke: ie68-redux-high
 ifeq ($(IE_BUILD_HEADLESS),1)
 	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
 endif
 	@tmp=$$(mktemp -d /tmp/ab3d2-ie68-pack.XXXXXX); trap 'rm -r "$$tmp"' EXIT; \
-	cp $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 "$$tmp/game.ie68"; \
+	cp $(IE68_REDUX_HIGH) "$$tmp/game.ie68"; \
 	log=$$(mktemp); trap 'rm -f "$$log"; rm -r "$$tmp"' EXIT; \
-	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_REDUX_HIGH_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
 	cat "$$log"; \
 	grep -Fq 'AB3D2_GUEST_PROGRESS mode=jit ' "$$log" || { echo 'ie68-pack-smoke: guest progress was not reported' >&2; exit 1; }; \
 	unexpected=$$(find "$$tmp" -mindepth 1 ! -name game.ie68 -print -quit); \
 	test -z "$$unexpected" || { echo "ie68-pack-smoke: unexpected runtime file $$unexpected" >&2; exit 1; }
 
-ie68-pack-save-test: ie68-overdrive-pack
+ie68-pack-save-test: ie68-redux-high
+	python3 ie/tools/generate_pack_save_smoke.py $(BUILD_DIR)/diag_symbols_ie68_redux_high.lua ie/pack_save_smoke.ies $(BUILD_DIR)/pack_save_smoke.ies
 ifeq ($(IE_BUILD_HEADLESS),1)
 	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
 endif
 	@tmp=$$(mktemp -d /tmp/ab3d2-ie68-save.XXXXXX); log=$$(mktemp); trap 'rm -f "$$log"; rm -r "$$tmp"' EXIT; \
-	cp $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 "$$tmp/game.ie68"; \
+	cp $(IE68_REDUX_HIGH) "$$tmp/game.ie68"; \
 	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(BUILD_DIR)/pack_save_smoke.ies "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
 	cat "$$log"; \
 	grep -Fq 'AB3D2_PACK_SAVE PASS' "$$log" || { echo 'ie68-pack-save-test: save override was not proved' >&2; exit 1; }; \
 	test -f "$$tmp/ab3d2-save.dat" || { echo 'ie68-pack-save-test: save file was not created' >&2; exit 1; }; \
 	rm -f "$$tmp/ab3d2-save.dat"; \
-	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -script $(IE68_REDUX_HIGH_JIT_PROGRESS_SCRIPT) "$$tmp/game.ie68" >"$$log" 2>&1; then cat "$$log"; exit 1; fi; \
 	grep -Fq 'AB3D2_GUEST_PROGRESS mode=jit ' "$$log" || { cat "$$log"; echo 'ie68-pack-save-test: embedded boot fallback did not reach gameplay' >&2; exit 1; }
 
 ie68-original-pack-smoke: ie68
@@ -241,7 +226,7 @@ ie68-blitter-test:
 ifeq ($(IE_BUILD_HEADLESS),1)
 	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
 endif
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-raw IE_BLITTER_TEST=1 IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_blitter_test.ie68 IE_MAP=$(BUILD_DIR)/ie68_blitter_test.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_blitter_test.lua IE_DIAG_SYMBOLS_FILE=ie/diag_blitter_symbols.txt IE_DIAG_SYMBOLS_OUT=$(IE_BIN_DIR)/diag_blitter_symbols.lua
+	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-raw IE_BLITTER_TEST=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_blitter_test.ie68 IE_MAP=$(BUILD_DIR)/ie68_blitter_test.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_blitter_test.lua IE_DIAG_SYMBOLS_FILE=ie/diag_blitter_symbols.txt IE_DIAG_SYMBOLS_OUT=$(IE_BIN_DIR)/diag_blitter_symbols.lua
 	@cp ie/blitter_test.ies $(IE_BIN_DIR)/blitter_test.ies
 	@log=$$(mktemp); result=$(IE_BIN_DIR)/blitter-test.result; trap 'rm -f "$$log" "$$result"' EXIT; rm -f "$$result"; \
 	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/blitter_test.ies $(IE_BIN_DIR)/ab3d2_ie68_blitter_test.ie68 >"$$log" 2>&1; then \

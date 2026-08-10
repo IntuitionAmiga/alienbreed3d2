@@ -1,6 +1,5 @@
--- Standard Redux High's 640x480 guest presentation leaves scaling to the host
--- compositor, so this target has a materially higher JIT progress contract
--- than the guest-side 1920x1080 Overdrive presentation path.
+-- Redux High leaves final display fitting to the host compositor, so this
+-- target has a higher JIT progress contract than the original media profile.
 local vblank_counter = 0x00013f30 -- _Vid_VBLCount_l in ie/diag_symbols.lua
 local sample_ms = 10000
 local minimum_guest_ticks_per_second = 30
