@@ -9,13 +9,15 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 
 - Target: full software-renderer build from the upstream `ab3d2_source/hires.s`.
 - Platform layer: `ab3d2_source/ie/platform/ie_hires_platform.s`.
-- Binary format: raw `.ie68` linked at `0x001000`.
+- Binary format: `.ie68` linked at `0x001000`, followed by an indexed runtime
+  asset pack.
 - Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
 - Redux build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
 - Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
-- Raw `.ie68` runtime cwd: run Intuition Engine from `ab3d2_source/` so raw
-  file I/O sees the expected media tree.
+- Development-only `ie68-raw` builds use the current working directory for
+  File MMIO assets. Canonical `ie68` and `ie68-overdrive` builds are
+  self-contained.
 - End-user run instructions for the packaged runtime binaries live in
   `ab3d2_source/ie/RELEASE.md`.
 
@@ -33,10 +35,11 @@ make -f ie/Makefile ie68-overdrive     # Redux high + Overdrive 1920x1080 presen
 make -f ie/Makefile ie68-all           # build every variant above
 ```
 
-Each target writes its `.ie68` artifact under `ab3d2_source/ie/bin/`. The map
-file goes under `ab3d2_source/_build/` (per-variant filenames). After each
-link step the diagnostic symbol file `$(IE_SYMBOLS)` is generated from the map
-and copied to `ab3d2_source/ie/diag_symbols.lua` for the diagnostic scripts.
+Each target links a raw intermediate under `ab3d2_source/_build/`, then writes
+its packed `.ie68` artifact under `ab3d2_source/ie/bin/`. The map file also
+goes under `ab3d2_source/_build/`. After each link step the diagnostic symbol
+file is generated from the map and copied to `ab3d2_source/ie/diag_symbols.lua`
+for the diagnostic scripts.
 
 ### Source boundary
 
@@ -68,7 +71,7 @@ artifacts:
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `IE_BIN_DIR` | `ie/bin` | Directory the `.ie68` artifact is written to. |
-| `IE_TARGET` | `$(IE_BIN_DIR)/ab3d2_ie68.ie68` | Full path of the linked `.ie68` artifact. Each variant target overrides this. |
+| `IE_TARGET` | `$(IE_BIN_DIR)/ab3d2_ie68.ie68` | Raw linker output used by `ie68-raw` and specialised diagnostic builds. Canonical targets override it with an intermediate under `$(BUILD_DIR)`. |
 | `IE_MAP` | `$(BUILD_DIR)/ie68.map` | vlink map output path. |
 | `IE_SYMBOLS` | `diag_symbols.lua` | Generated Lua diagnostic symbol file (copied to `ie/diag_symbols.lua` after the link step). |
 | `IE_DIAG_SYMBOLS_FILE` | `ie/diag_symbols.txt` | Plain-text list of symbol names extracted from the map into `IE_SYMBOLS`. |
@@ -122,15 +125,17 @@ the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 
 | Binary | Profile |
 |--------|---------|
-| `ab3d2_ie68.ie68` | Original |
+| `ab3d2_ie68.ie68` | Original, packed |
 | `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive, packed |
 
-The packed Redux image contains every file needed at runtime. The guest checks
-the pack header, index and selected asset before copying data to its heap. File
-MMIO remains available as a fallback for development images and as the
-persistent save path. The embedded `boot.dat` is the default save state. A host
-file named `ab3d2-save.dat` overrides it when present, and save operations write
-that file without changing the packed image.
+Both images contain every file needed at runtime. The original build derives a
+201-file runtime inventory from its game database and level set, excluding the
+editor archive from the pack. The guest checks the pack header, index and
+selected asset before copying data to its heap. File MMIO remains available as
+a fallback for development images and as the persistent save path. A host file
+named `ab3d2-save.dat` overrides `boot.dat` when present, and save operations
+write that file without changing the packed image. Redux supplies an embedded
+default `boot.dat`; the original build starts without one when no save exists.
 
 ### Packaged runtime binaries
 
@@ -476,13 +481,18 @@ Key IE files:
 - `ie_hires_platform.s`: video, input, audio, menu, system, fake-library,
   message, inventory, and zone compatibility entrypoints.
 - `controlloop.s`: IE startup/menu/game outer-loop flow selected by `IS_IE`.
-- `ie_file_io_runtime.i`: IE raw file loader and media path normalization.
+- `ie_file_io_runtime.i`: embedded-pack loader, File MMIO fallback and media
+  path normalisation.
 - `ie_music.i`: legacy `mt_*` entrypoints backed by IE MOD MMIO with SID
   fallback.
 - `tools/normalize_media.sh`: prepares the original local media layout.
 - `tools/convert_menu_assets.py`: converts original planar menu art and
   palettes into IE CLUT8 build artifacts.
 - `tools/prepare_media_profile.py`: prepares Redux high/low media profiles.
+- `tools/prepare_original_runtime.py`: derives the original runtime inventory
+  from its database and available level files.
+- `tools/pack_ie68.py`: builds and inspects deterministic self-contained IE68
+  images.
 
 ## Intuition Engine Links
 

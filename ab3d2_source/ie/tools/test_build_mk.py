@@ -116,6 +116,36 @@ class VariantInventoryTests(unittest.TestCase):
 
 
 class PackedImageTargetTests(unittest.TestCase):
+    def test_canonical_original_target_packs_the_advertised_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68")
+        self.assertIn("ie/tools/pack_ie68.py", output)
+        self.assertIn("ie/tools/prepare_original_runtime.py", output)
+        self.assertIn("_build/ab3d2_ie68_raw.ie68", output)
+        self.assertIn("_build/ie_original_runtime", output)
+        self.assertIn("ie/bin/ab3d2_ie68.ie68", output)
+
+    def test_original_linker_never_writes_the_canonical_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68")
+        self.assertIn("IE_TARGET=_build/ab3d2_ie68_raw.ie68", output)
+        self.assertNotIn("IE_TARGET=ie/bin/ab3d2_ie68.ie68", output)
+
+    def test_all_variants_reaches_both_canonical_packers(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-all")
+        self.assertIn("_build/ab3d2_ie68_raw.ie68", output)
+        self.assertIn("_build/ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
+        self.assertEqual(output.count("ie/tools/pack_ie68.py"), 2)
+
+    def test_pack_alias_builds_the_canonical_original_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack")
+        self.assertIn("_build/ab3d2_ie68_raw.ie68", output)
+        self.assertIn("ie/bin/ab3d2_ie68.ie68", output)
+        self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
+
+    def test_specialised_test_build_uses_explicit_raw_target(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-fps-test")
+        self.assertIn("ie68-raw IE_FPS_TEST=1", output)
+        self.assertNotIn("ie/tools/pack_ie68.py", output)
+
     def test_canonical_overdrive_target_packs_the_advertised_image(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-overdrive")
         self.assertIn("ie/tools/pack_ie68.py", output)
@@ -138,14 +168,6 @@ class PackedImageTargetTests(unittest.TestCase):
             output,
         )
 
-    def test_packed_target_builds_raw_program_then_packs_prepared_assets(self) -> None:
-        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack")
-        self.assertIn("ab3d2_ie68_redux_high_raw.ie68", output)
-        self.assertIn("ie/tools/pack_ie68.py", output)
-        self.assertIn("_build/ie_media/redux-high", output)
-        self.assertIn("_build/ie_media/redux-high", output)
-        self.assertIn("ab3d2_ie68_redux_high.ie68", output)
-
     def test_overdrive_pack_has_a_distinct_raw_intermediate(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-overdrive-pack")
         self.assertIn("ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
@@ -164,6 +186,22 @@ class PackedImageTargetTests(unittest.TestCase):
         self.assertNotIn("-file-root", output)
         self.assertIn("AB3D2_GUEST_PROGRESS", output)
         self.assertIn("unexpected runtime file", output)
+
+    def test_original_pack_smoke_is_isolated_without_file_root(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-original-pack-smoke")
+        self.assertIn("ab3d2_ie68.ie68", output)
+        self.assertIn("mktemp -d", output)
+        self.assertNotIn("-file-root", output)
+        self.assertIn("AB3D2_GUEST_PROGRESS", output)
+        self.assertIn("unexpected runtime file", output)
+
+    def test_original_save_test_proves_override_and_no_save_fallback(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-original-pack-save-test")
+        self.assertIn("pack_save_smoke_original.ies", output)
+        self.assertIn("AB3D2_PACK_SAVE PASS", output)
+        self.assertIn("ab3d2-save.dat", output)
+        self.assertIn("rm -f", output)
+        self.assertIn("ab3d2_ie68.ie68", output)
 
     def test_pack_save_test_proves_external_override_and_embedded_fallback(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack-save-test")

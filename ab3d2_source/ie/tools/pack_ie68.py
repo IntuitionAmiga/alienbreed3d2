@@ -61,16 +61,19 @@ def canonical_path(path: str) -> str:
 def collect_assets(asset_root: Path, prefix: str) -> list[tuple[str, bytes]]:
     canonical_prefix = canonical_path(prefix)
     entries: list[tuple[str, bytes]] = []
-    seen: set[str] = set()
+    seen: dict[str, bytes] = {}
     for source in sorted(asset_root.rglob("*"), key=lambda item: item.as_posix().lower()):
         if not source.is_file():
             continue
         relative = source.relative_to(asset_root).as_posix()
         path = canonical_path(f"{canonical_prefix}/{relative}")
+        data = source.read_bytes()
         if path in seen:
-            raise ValueError(f"duplicate canonical asset path: {path}")
-        seen.add(path)
-        entries.append((path, source.read_bytes()))
+            if seen[path] != data:
+                raise ValueError(f"duplicate canonical asset path: {path}")
+            continue
+        seen[path] = data
+        entries.append((path, data))
     return entries
 
 

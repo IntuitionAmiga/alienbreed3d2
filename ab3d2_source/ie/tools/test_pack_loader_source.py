@@ -17,6 +17,16 @@ class PackLoaderSourceTests(unittest.TestCase):
         ordinary = body.split(".try_pack_ie:", 1)[1]
         self.assertLess(ordinary.index("bsr\t\tio_ie_pack_find"), ordinary.index(".try_file_ie:"))
 
+    def test_each_generated_fallback_candidate_checks_the_pack(self):
+        for start, end in (
+            (".try_file_ie:", ".try_parent_media_ie:"),
+            (".try_parent_media_ie:", ".try_normal_ie:"),
+            ("bsr\t\tio_ie_make_repo_root_ie_path", ".try_unpacked_ie:"),
+            (".try_unpacked_ie:", ".loaded_ie:"),
+        ):
+            block = self.source.split(start, 1)[1].split(end, 1)[0]
+            self.assertIn("bsr\t\t.try_pack_candidate_ie", block)
+
     def test_pack_lookup_validates_header_table_and_asset_checksums(self):
         self.assertIn("io_ie_pack_validate:", self.source)
         self.assertGreaterEqual(self.source.count("bsr\t\tio_ie_crc32"), 3)

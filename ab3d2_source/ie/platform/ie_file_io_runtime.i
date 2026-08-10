@@ -638,8 +638,12 @@ io_ie_load_to_heap:
 					bsr		io_ie_make_repo_root_build_path
 					tst.l	d0
 					beq.s	.try_parent_media_ie
+					move.l	d0,a6
+					bsr		.try_pack_candidate_ie
+					tst.l	d0
+					bne		.packed_ie
 					move.l	d2,FILE_IO_DATA
-					move.l	d0,FILE_IO_NAME
+					move.l	a6,FILE_IO_NAME
 					move.l	#1,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d6
 					tst.l	d6
@@ -648,12 +652,16 @@ io_ie_load_to_heap:
 					bsr		io_ie_make_parent_media_path
 					tst.l	d0
 					beq.s	.try_normal_ie
+					move.l	d0,a6
+					bsr		.try_pack_candidate_ie
+					tst.l	d0
+					bne		.packed_ie
 					move.l	d2,FILE_IO_DATA
-					move.l	d0,FILE_IO_NAME
+					move.l	a6,FILE_IO_NAME
 					move.l	#1,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d6
 					tst.l	d6
-					beq.s	.loaded_ie
+					beq		.loaded_ie
 .try_normal_ie:
 					lea		io_ie_path_vb,a0
 					move.l	a0,FILE_IO_NAME
@@ -661,22 +669,30 @@ io_ie_load_to_heap:
 					move.l	#1,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d6
 					tst.l	d6
-					beq.s	.loaded_ie
+					beq		.loaded_ie
 					bsr		io_ie_make_repo_root_ie_path
 					tst.l	d0
 					beq.s	.try_unpacked_ie
+					move.l	d0,a6
+					bsr		.try_pack_candidate_ie
+					tst.l	d0
+					bne		.packed_ie
 					move.l	d2,FILE_IO_DATA
-					move.l	d0,FILE_IO_NAME
+					move.l	a6,FILE_IO_NAME
 					move.l	#1,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d6
 					tst.l	d6
-					beq.s	.loaded_ie
+					beq		.loaded_ie
 .try_unpacked_ie:
 					bsr		io_ie_make_unpacked_media_path
 					tst.l	d0
 					beq.s	.fail
+					move.l	d0,a6
+					bsr		.try_pack_candidate_ie
+					tst.l	d0
+					bne		.packed_ie
 					move.l	d2,FILE_IO_DATA
-					move.l	d0,FILE_IO_NAME
+					move.l	a6,FILE_IO_NAME
 					move.l	#1,FILE_IO_CTRL
 					move.l	FILE_IO_STATUS,d6
 					tst.l	d6
@@ -691,9 +707,21 @@ io_ie_load_to_heap:
 				cmp.l	#IO_IE_HEAP_LIMIT,d4
 				bhi.s	.fail
 				move.l	d4,IO_IE_HEAP_PTR
-				move.l	d2,d0
-				movem.l	(a7)+,d2-d7/a1-a6
-				rts
+					move.l	d2,d0
+					bra.s	.packed_ie
+.try_pack_candidate_ie:
+					move.l	d0,a0
+					bsr		io_ie_pack_find
+					tst.l	d0
+					beq.s	.pack_candidate_miss_ie
+					move.l	d0,a0
+					move.l	d2,a1
+					bsr		io_ie_pack_copy
+.pack_candidate_miss_ie:
+					rts
+.packed_ie:
+					movem.l	(a7)+,d2-d7/a1-a6
+					rts
 .fail:
 					clr.l	d0
 					clr.l	d1

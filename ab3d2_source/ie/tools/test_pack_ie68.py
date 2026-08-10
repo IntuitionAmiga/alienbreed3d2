@@ -68,6 +68,16 @@ class PackIE68Tests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "duplicate canonical asset path"):
             self.build()
 
+    def test_collapses_byte_identical_case_aliases(self):
+        (self.assets / "PAL").write_bytes(b"same")
+        (self.assets / "pal").write_bytes(b"same")
+
+        image = self.build()
+
+        self.assertEqual(len(image.entries), 1)
+        self.assertEqual(image.entries[0].path, "_build/ie_media/redux-high/pal")
+        self.assertEqual(image.entries[0].data, b"same")
+
     def test_rejects_unsafe_prefix(self):
         (self.assets / "asset").write_bytes(b"data")
         for prefix in ("/absolute", "../escape", "safe/../escape", "safe\\bad"):

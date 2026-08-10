@@ -24,6 +24,8 @@ FILES = (
     ROOT / "ie" / "tools" / "test_pack_loader_source.py",
     ROOT / "ie" / "tools" / "generate_pack_save_smoke.py",
     ROOT / "ie" / "tools" / "test_generate_pack_save_smoke.py",
+    ROOT / "ie" / "tools" / "prepare_original_runtime.py",
+    ROOT / "ie" / "tools" / "test_prepare_original_runtime.py",
     ROOT / "ie" / "platform" / "ie_file_io_runtime.i",
 )
 FORBIDDEN = {
