@@ -29,14 +29,18 @@ def dry_run(*assignments: str, target: str = "ie68-jit-progress-test") -> str:
 
 
 class JITProgressTargetTests(unittest.TestCase):
-    def test_progress_target_uses_the_overdrive_redux_image(self) -> None:
+    def test_progress_target_uses_the_standard_redux_image(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0")
-        self.assertIn("IE_OVERDRIVE=1", output)
-        self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
-        self.assertNotIn("ie68-redux-high", output)
-        self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
+        self.assertIn("MEDIA_PROFILE=redux-high", output)
+        self.assertIn("ab3d2_ie68_redux_high.ie68", output)
+        self.assertIn("ab3d2_ie68_redux_high_progress.ies", output)
+        self.assertNotIn("IE_OVERDRIVE=1", output)
 
-    def test_overdrive_progress_script_uses_its_supported_headless_floor(self) -> None:
+    def test_standard_redux_progress_script_uses_the_native_cadence_floor(self) -> None:
+        script = (REPO_ROOT / "ie/bin/ab3d2_ie68_redux_high_progress.ies").read_text()
+        self.assertIn("local minimum_guest_ticks_per_second = 30", script)
+
+    def test_shared_overdrive_progress_script_keeps_its_compatible_floor(self) -> None:
         script = (REPO_ROOT / "ie/bin/ab3d2_ie68_guest_progress.ies").read_text()
         self.assertIn("local minimum_guest_ticks_per_second = 5", script)
 
@@ -108,11 +112,11 @@ class BlitterTargetTests(unittest.TestCase):
 
 
 class VariantInventoryTests(unittest.TestCase):
-    def test_all_target_does_not_build_the_retired_standard_redux_image(self) -> None:
+    def test_all_target_builds_the_standard_redux_image(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-all")
+        self.assertIn("ab3d2_ie68_redux_high_raw.ie68", output)
+        self.assertIn("ab3d2_ie68_redux_high.ie68", output)
         self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
-        self.assertNotIn("ie68-redux-high", output)
-        self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
 
 
 class PackedImageTargetTests(unittest.TestCase):
@@ -129,11 +133,19 @@ class PackedImageTargetTests(unittest.TestCase):
         self.assertIn("IE_TARGET=_build/ab3d2_ie68_raw.ie68", output)
         self.assertNotIn("IE_TARGET=ie/bin/ab3d2_ie68.ie68", output)
 
-    def test_all_variants_reaches_both_canonical_packers(self) -> None:
+    def test_all_variants_reaches_all_three_canonical_packers(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-all")
         self.assertIn("_build/ab3d2_ie68_raw.ie68", output)
+        self.assertIn("_build/ab3d2_ie68_redux_high_raw.ie68", output)
         self.assertIn("_build/ab3d2_ie68_redux_high_overdrive_raw.ie68", output)
-        self.assertEqual(output.count("ie/tools/pack_ie68.py"), 2)
+        self.assertEqual(output.count("ie/tools/pack_ie68.py"), 3)
+
+    def test_canonical_standard_redux_target_packs_the_advertised_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-redux-high")
+        self.assertIn("MEDIA_PROFILE=redux-high", output)
+        self.assertIn("_build/ab3d2_ie68_redux_high_raw.ie68", output)
+        self.assertIn("ie/bin/ab3d2_ie68_redux_high.ie68", output)
+        self.assertIn("ie/tools/pack_ie68.py", output)
 
     def test_pack_alias_builds_the_canonical_original_image(self) -> None:
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack")
@@ -183,6 +195,7 @@ class PackedImageTargetTests(unittest.TestCase):
         output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-pack-smoke")
         self.assertIn("mktemp -d", output)
         self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
+        self.assertIn("ab3d2_ie68_guest_progress.ies", output)
         self.assertNotIn("-file-root", output)
         self.assertIn("AB3D2_GUEST_PROGRESS", output)
         self.assertIn("unexpected runtime file", output)

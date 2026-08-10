@@ -12,7 +12,8 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 - Binary format: `.ie68` linked at `0x001000`, followed by an indexed runtime
   asset pack.
 - Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
-- Redux build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
+- Redux High build target: `make -f ie/Makefile ie68-redux-high` from `ab3d2_source/`.
+- Overdrive build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
 - Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
 - Development-only `ie68-raw` builds use the current working directory for
@@ -31,7 +32,8 @@ From `ab3d2_source/`:
 
 ```sh
 make -f ie/Makefile ie68               # original profile
-make -f ie/Makefile ie68-overdrive     # Redux high + Overdrive 1920x1080 presentation
+make -f ie/Makefile ie68-redux-high    # Redux High with host fit/stretch presentation
+make -f ie/Makefile ie68-overdrive     # Redux High + guest-side 1920x1080 presentation
 make -f ie/Makefile ie68-all           # build every variant above
 ```
 
@@ -80,11 +82,11 @@ artifacts:
 
 ### Redux/Overdrive prerequisites
 
-The Redux target requires the Redux data checkout at
+The Redux High and Overdrive targets require the Redux data checkout at
 `karlos-tkg-main/` in the `alienbreed3d2` repository root. The expected data
 root is `karlos-tkg-main/Game`, and the build prepares the selected profile
 under `ab3d2_source/_build/ie_media/`. This requirement applies to building the
-raw Redux `.ie68` artifact; the packaged runtime binaries
+raw Redux `.ie68` artifacts; the packaged runtime binaries
 already contain the prepared Karlos-TKG-High program and assets.
 
 ### Pipeline overview
@@ -126,9 +128,10 @@ the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 | Binary | Profile |
 |--------|---------|
 | `ab3d2_ie68.ie68` | Original, packed |
+| `ab3d2_ie68_redux_high.ie68` | Redux High, packed |
 | `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive, packed |
 
-Both images contain every file needed at runtime. The original build derives a
+All images contain every file needed at runtime. The original build derives a
 201-file runtime inventory from its game database and level set, excluding the
 editor archive from the pack. The guest checks the pack header, index and
 selected asset before copying data to its heap. File MMIO remains available as
@@ -456,13 +459,13 @@ drive gameplay, sample renderer/audio state and dump framebuffer histograms.
 Build the desired profile first, then run the scripts from `ab3d2_source`:
 
 ```sh
-make -f ie/Makefile ie68-overdrive
+make -f ie/Makefile ie68-redux-high
 ```
 
 Expected diagnostic coverage includes path resolution, render pointers, palette
 and texture hashes, lighting/debug flags, wall-brightness scratch values,
 framebuffer histograms, freeze/progress sampling, and MOD/SID playback
-registers. The local Redux scripts default to `ab3d2_ie68_redux_high_overdrive.ie68`. If
+registers. The local Redux scripts default to `ab3d2_ie68_redux_high.ie68`. If
 the IEScript host predefines `IE_TARGET` or `TARGET`, that value is loaded
 instead.
 

@@ -68,10 +68,10 @@ sys.print(
 )
 
 -- _Vid_VBLCount_l is a guest progress counter, not a presentation clock. The
--- Overdrive performs its 320x240-to-1920x1080 scale blit in the guest, so its
--- headless JIT run advances this counter at about 7 Hz. The original build is
--- faster. Require 5 Hz to cover both canonical images while leaving the native
--- block and native-retired assertions to prove JIT execution.
+-- Overdrive image performs its 320x240-to-1920x1080 scale blit in the guest,
+-- so its headless JIT run advances this counter at about 7 Hz. Require 5 Hz to
+-- catch stalled or severely regressed execution while the native-block and
+-- native-retired assertions prove JIT execution.
 if delta * 1000 < minimum_guest_ticks_per_second * elapsed then
 	 sys.exit(1)
 end
