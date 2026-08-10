@@ -56,6 +56,18 @@
 	xdef ie_mouse_left_key_down_b
 	xdef ie_mouse_right_key_down_b
 	xdef ie_gamepad_clear
+	IFD		IE_FPS_TEST
+	xdef ie_fps_test_render_count_l
+	xdef ie_fps_test_decimal_offset_l
+	xdef ie_fps_test_eval_count_l
+	xdef ie_fps_test_render_digit_count_b
+	xdef ie_fps_test_render_digit_x_w
+	xdef ie_fps_test_present_decimal_b
+	xdef ie_fps_test_force_samples_b
+	xdef ie_fps_test_result_w
+	xdef ie_fps_test_mark_ecv_q
+	xdef ie_fps_test_mark_rate_l
+	ENDC
 	IFD		IE_GAMEPAD_TEST
 	xdef ie_gamepad_test_enable_b
 	xdef ie_gamepad_test_status_l
@@ -106,6 +118,11 @@
 	xref _Zone_EdgePointIndexes_vw
 	xref _Sys_MouseY
 	xref _Sys_FPSLimit_w
+	xref _Sys_FrameTimes_vl
+	xref _Sys_FrameNumber_l
+	xref _Sys_FPSIntAvg_w
+	xref _Sys_FPSFracAvg_w
+	xref _Prefs_DisplayFPS_b
 	xref _KeyMap_vb
 	xref lastpressed
 	xref _VBlankInterrupt
@@ -148,6 +165,9 @@
 MOUSE_X	equ	$F0730
 MOUSE_Y	equ	$F0734
 MOUSE_BUTTONS	equ	$F0738
+RTC_MONO_USEC_LO	equ	$F075C
+RTC_MONO_USEC_HI	equ	$F0760
+RTC_MONO_HZ		equ	1000000
 MOUSE_CTRL	equ	$F074C
 MOUSE_DX	equ	$F0754
 MOUSE_DY	equ	$F0758
@@ -332,17 +352,202 @@ ie_poll_input:
 	rts
 
 _Sys_MarkTime:
+	bsr		ie_fps_read_usec
 	tst.l	a0
 	beq.s	.no_store
-	clr.l	(a0)
-	clr.l	4(a0)
+	move.l	d1,(a0)
+	move.l	d0,4(a0)
 .no_store:
-	move.l	#60000,d0
+	move.l	#RTC_MONO_HZ,d0
 	rts
 
 _Sys_FrameLap:
-_Sys_ShowFPS:
+	movem.l	d0-d3/a0,-(sp)
+	IFD		IE_FPS_TEST
+	lea		ie_fps_test_mark_ecv_q,a0
+	bsr		_Sys_MarkTime
+	move.l	d0,ie_fps_test_mark_rate_l
+	ENDC
+	bsr		ie_fps_read_usec
+	move.l	_Sys_PrevFrameTimeECV_q+4,d2
+	move.l	d1,_Sys_FrameTimeECV_q
+	move.l	d0,_Sys_FrameTimeECV_q+4
+	move.l	d1,_Sys_PrevFrameTimeECV_q
+	move.l	d0,_Sys_PrevFrameTimeECV_q+4
+	tst.l	d2
+	beq.s	.first_sample
+	sub.l	d2,d0
+	beq.s	.first_sample
+	cmpi.l	#1000000,d0
+	bls.s	.sample_ok
+	move.l	#1000000,d0
+.sample_ok:
+	move.l	_Sys_FrameNumber_l,d1
+	andi.l	#7,d1
+	lsl.l	#2,d1
+	lea		_Sys_FrameTimes_vl,a0
+	move.l	d0,0(a0,d1.l)
+	addq.l	#1,_Sys_FrameNumber_l
+	bra.s	.frame_done
+.first_sample:
+	addq.l	#1,_Sys_FrameNumber_l
+.frame_done:
+	movem.l	(a7)+,d0-d3/a0
+	rts
+
 _Sys_EvalFPS:
+	movem.l	d0-d4/a0,-(sp)
+	IFD		IE_FPS_TEST
+	tst.b	ie_fps_test_force_samples_b
+	beq.s	.test_samples_done
+	moveq	#0,d3
+	move.b	ie_fps_test_force_samples_b,d3
+	clr.b	ie_fps_test_force_samples_b
+	st		ie_fps_test_capture_b
+	lea		_Sys_FrameTimes_vl,a0
+	moveq	#7,d1
+	move.l	#20000,d2
+	cmpi.b	#2,d3
+	bne.s	.test_sample_value_done
+	move.l	#250000,d2
+.test_sample_value_done:
+.test_samples:
+	move.l	d2,(a0)+
+	dbra	d1,.test_samples
+.test_samples_done:
+	ENDC
+	IFD		IE_FPS_TEST
+	tst.b	ie_fps_test_capture_b
+	bne.s	.eval_enabled
+	ENDC
+	tst.b	_Prefs_DisplayFPS_b
+	beq		.eval_done
+.eval_enabled:
+	IFD		IE_FPS_TEST
+	addq.l	#1,ie_fps_test_eval_count_l
+	ENDC
+	lea		_Sys_FrameTimes_vl,a0
+	moveq	#0,d0
+	moveq	#7,d1
+.sum_samples:
+	add.l	(a0)+,d0
+	dbra	d1,.sum_samples
+	beq.s	.eval_done
+	lsr.l	#3,d0
+	beq.s	.eval_done
+	move.l	#10000000,d1
+.fit_divisor:
+	cmpi.l	#65535,d0
+	bls.s	.divide
+	lsr.l	#1,d0
+	lsr.l	#1,d1
+	bra.s	.fit_divisor
+.divide:
+	divu.w	d0,d1
+	move.w	d1,d2
+	moveq	#0,d3
+	move.w	d2,d3
+	divu.w	#10,d3
+	move.w	d3,_Sys_FPSIntAvg_w
+	swap	d3
+	move.w	d3,_Sys_FPSFracAvg_w
+.eval_done:
+	IFD		IE_FPS_TEST
+	tst.b	ie_fps_test_capture_b
+	beq.s	.test_capture_done
+	clr.b	ie_fps_test_capture_b
+	move.w	_Sys_FPSIntAvg_w,ie_fps_test_result_w
+	move.w	_Sys_FPSFracAvg_w,ie_fps_test_result_w+2
+.test_capture_done:
+	ENDC
+	movem.l	(a7)+,d0-d4/a0
+	rts
+
+_Sys_ShowFPS:
+	clr.b	ie_fps_pending_b
+	tst.b	_Prefs_DisplayFPS_b
+	beq.s	.request_done
+	st		ie_fps_pending_b
+.request_done:
+	rts
+
+ie_draw_fps:
+	tst.b	_Prefs_DisplayFPS_b
+	beq		.draw_done
+	movem.l	d0-d7/a0-a6,-(sp)
+	move.l	_Vid_FastBufferPtr_l,a6
+	tst.l	a6
+	bne.s	.have_fps_fb
+	move.l	#CHUNKY_BASE,a6
+.have_fps_fb:
+	IFD		IE_FPS_TEST
+	clr.b	ie_fps_test_render_digit_count_b
+	st		ie_fps_test_render_trace_b
+	ENDC
+	lea		ie_hud_digits_good,a3
+	moveq	#0,d0
+	move.w	_Sys_FPSIntAvg_w,d0
+	cmpi.w	#999,d0
+	bls.s	.integer_ok
+	move.w	#999,d0
+.integer_ok:
+	moveq	#0,d4
+	move.w	d0,d4
+	divu.w	#100,d4
+	move.w	d4,d5
+	swap	d4
+	move.w	d4,d0
+	moveq	#0,d4
+	move.w	d0,d4
+	divu.w	#10,d4
+	move.w	d4,d6
+	swap	d4
+	move.w	d4,d7
+	move.w	d5,d0
+	move.w	#192,d1
+	bsr		ie_hud_draw_counter_digit
+	move.w	d6,d0
+	move.w	#200,d1
+	bsr		ie_hud_draw_counter_digit
+	move.w	d7,d0
+	move.w	#208,d1
+	bsr		ie_hud_draw_counter_digit
+	move.l	a6,a0
+	adda.l	#(IE_HUD_COUNTER_Y*SCREEN_WIDTH)+218,a0
+	IFD		IE_FPS_TEST
+	move.l	a0,d0
+	sub.l	a6,d0
+	move.l	d0,ie_fps_test_decimal_offset_l
+	ENDC
+	move.b	#255,(a0)
+	move.b	#255,1(a0)
+	move.b	#255,SCREEN_WIDTH(a0)
+	move.b	#255,SCREEN_WIDTH+1(a0)
+	moveq	#0,d0
+	move.w	_Sys_FPSFracAvg_w,d0
+	andi.w	#15,d0
+	move.w	#224,d1
+	bsr		ie_hud_draw_counter_digit
+	IFD		IE_FPS_TEST
+	clr.b	ie_fps_test_render_trace_b
+	addq.l	#1,ie_fps_test_render_count_l
+	ENDC
+	movem.l	(a7)+,d0-d7/a0-a6
+.draw_done:
+	rts
+
+; Read the split monotonic counter high-low-high so a low-word rollover cannot
+; produce a mismatched EClockVal. Frame deltas use unsigned low-word subtraction,
+; which remains correct across one rollover because frames are under 71 minutes.
+ie_fps_read_usec:
+	move.l	a0,-(a7)
+	move.l	#RTC_MONO_USEC_HI,a0
+.retry:
+	move.l	(a0),d1
+	move.l	-4(a0),d0
+	cmp.l	(a0),d1
+	bne.s	.retry
+	move.l	(a7)+,a0
 	rts
 
 _Sys_ReadMouse:
@@ -543,6 +748,24 @@ _Vid_Present:
 	clr.b	_Vid_DoubleHeight_b
 	clr.b	_Vid_DoubleWidth_b
 	bsr		ie_draw_game_hud
+	tst.b	ie_fps_pending_b
+	beq.s	.fps_done
+	clr.b	ie_fps_pending_b
+	bsr		ie_draw_fps
+.fps_done:
+	IFD		IE_FPS_TEST
+	move.l	_Vid_FastBufferPtr_l,a0
+	tst.l	a0
+	bne.s	.test_have_fps_fb
+	move.l	#CHUNKY_BASE,a0
+.test_have_fps_fb:
+	adda.l	#(IE_HUD_COUNTER_Y*SCREEN_WIDTH)+218,a0
+	lea		ie_fps_test_present_decimal_b,a1
+	move.b	(a0),(a1)+
+	move.b	1(a0),(a1)+
+	move.b	SCREEN_WIDTH(a0),(a1)+
+	move.b	SCREEN_WIDTH+1(a0),(a1)+
+	ENDC
 .mode_ready:
 	tst.b	_Vid_FullScreen_b
 	bne.s	.present_full
@@ -836,6 +1059,18 @@ ie_hud_draw_counter:
 	rts
 
 ie_hud_draw_counter_digit:
+	IFD		IE_FPS_TEST
+	tst.b	ie_fps_test_render_trace_b
+	beq.s	.test_trace_done
+	moveq	#0,d2
+	move.b	ie_fps_test_render_digit_count_b,d2
+	cmpi.b	#4,d2
+	bhs.s	.test_trace_done
+	lea		ie_fps_test_render_digit_x_w,a0
+	move.w	d1,0(a0,d2.w*2)
+	addq.b	#1,ie_fps_test_render_digit_count_b
+.test_trace_done:
+	ENDC
 	lea		0(a3),a2
 	mulu.w	#IE_HUD_DIGIT_BYTES/10,d0
 	adda.l	d0,a2
@@ -1912,3 +2147,35 @@ ie_hud_slots_found:
 	ds.b	IE_HUD_SLOT_BYTES
 ie_hud_slots_selected:
 	ds.b	IE_HUD_SLOT_BYTES
+	cnop	0,4
+ie_fps_pending_b:
+	dc.b	0
+	cnop	0,4
+	IFD		IE_FPS_TEST
+ie_fps_test_force_samples_b:
+	dc.b	0
+	ie_fps_test_capture_b:
+	dc.b	0
+	dc.w	0
+ie_fps_test_result_w:
+	dc.w	0
+	dc.w	0
+ie_fps_test_render_count_l:
+	ds.l	1
+ie_fps_test_decimal_offset_l:
+	ds.l	1
+ie_fps_test_eval_count_l:
+	ds.l	1
+ie_fps_test_render_digit_count_b:
+	dc.b	0
+	ie_fps_test_render_trace_b:
+	dc.b	0
+ie_fps_test_render_digit_x_w:
+	ds.w	4
+ie_fps_test_present_decimal_b:
+	ds.b	4
+ie_fps_test_mark_ecv_q:
+	ds.l	2
+ie_fps_test_mark_rate_l:
+	ds.l	1
+	ENDC

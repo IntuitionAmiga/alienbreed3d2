@@ -313,6 +313,17 @@ wait loop. Choosing Exit Game requests the Intuition Engine ProgramExecutor
 hard-reset operation, so the game returns through the same reset-to-BASIC path
 as the IE F10 hotkey.
 
+### FPS counter
+
+The original Custom Options `Display FPS` setting is available in the IE port
+and remains off by default. When enabled it measures completed gameplay frames
+against Intuition Engine's monotonic microsecond clock, averages the last eight
+samples, and renders the resulting `FPS.tenths` value into the guest 320×240
+framebuffer beside the existing HUD. It is therefore present in screenshots and
+scales with both the standard and Overdrive presentation paths; it is not a
+host status-bar measurement. The counter is intentionally inactive in menus,
+which do not execute the gameplay frame loop.
+
 The large menu work buffers are absolute high-memory symbols in IE builds, not
 `.bsschip` allocations. This keeps `_mnu_screen` and `_mnu_morescreen` away
 from the low-memory audio and runtime scratch areas.

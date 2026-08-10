@@ -32,6 +32,7 @@ IE_PATCH_DIR ?= ie/patches
 IE_ENTRY_MAKEFILE ?= ie/Makefile
 IE_OVERDRIVE ?= 0
 IE_GAMEPAD_TEST ?= 0
+IE_FPS_TEST ?= 0
 MEDIA_PROFILE ?= original
 IE_MEDIA_PROFILE_DIR ?= $(BUILD_DIR)/ie_media/$(MEDIA_PROFILE)
 IE_PROFILE_BUILD_DIR ?= $(BUILD_DIR)/ie/$(MEDIA_PROFILE)
@@ -49,6 +50,13 @@ IE_PROFILE_DEFS += -DIE_GAMEPAD_TEST=1
 else ifeq ($(IE_GAMEPAD_TEST),0)
 else
 $(error Unsupported IE_GAMEPAD_TEST=$(IE_GAMEPAD_TEST); use 0 or 1)
+endif
+
+ifeq ($(IE_FPS_TEST),1)
+IE_PROFILE_DEFS += -DIE_FPS_TEST=1
+else ifeq ($(IE_FPS_TEST),0)
+else
+$(error Unsupported IE_FPS_TEST=$(IE_FPS_TEST); use 0 or 1)
 endif
 
 ifneq ($(origin IE_ENABLE_SID_MUSIC),undefined)
@@ -72,7 +80,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance \
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test \
 	ie-source-overlay ie-patches-check ie-source-overlay-test ie-prose-check
 
 ie68: ie68_sw
@@ -130,6 +138,22 @@ endif
 		 echo 'ie68-gamepad-test: diagnostic did not report success' >&2; exit 1; \
 	}
 
+ie68-fps-test:
+ifeq ($(IE_BUILD_HEADLESS),1)
+	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
+endif
+	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_FPS_TEST=1 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_fps_test.ie68 IE_MAP=$(BUILD_DIR)/ie68_fps_test.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_fps_test.lua IE_DIAG_SYMBOLS_FILE=ie/diag_fps_symbols.txt IE_DIAG_SYMBOLS_OUT=$(IE_BIN_DIR)/diag_symbols_fps_test.lua
+	@cp ie/fps_test.ies $(IE_BIN_DIR)/fps_test.ies
+	@log=$$(mktemp); result=$(IE_BIN_DIR)/fps-test.result; trap 'rm -f "$$log" "$$result"' EXIT; rm -f "$$result"; \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/fps_test.ies $(IE_BIN_DIR)/ab3d2_ie68_fps_test.ie68 >"$$log" 2>&1; then \
+		cat "$$log"; exit 1; \
+	fi; \
+	cat "$$log"; \
+	grep -Fq 'AB3D2_FPS PASS' "$$log" || { \
+		test ! -f "$$result" || cat "$$result"; \
+		echo 'ie68-fps-test: diagnostic did not report success' >&2; exit 1; \
+	}
+
 ie68-gamepad-acceptance: ie68
 	@cp ie/gamepad_acceptance.ies $(IE_BIN_DIR)/gamepad_acceptance.ies
 	@IE_NO_IPC=1 $(IE_GAMEPAD_ACCEPTANCE_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/gamepad_acceptance.ies $(IE_BIN_DIR)/ab3d2_ie68.ie68
@@ -176,5 +200,10 @@ ie68_sw: ie-source-overlay $(IE_MENU_BUILD_DIR)/menu_assets.stamp $(IE_UNPACKED_
 ifeq ($(IE_GAMEPAD_TEST),0)
 	@if grep -Eq 'IE_GAMEPAD_TEST|ie_gamepad_test_' $(IE_MAP); then \
 		echo 'production IE map contains gamepad test-seam symbols' >&2; exit 1; \
+	fi
+endif
+ifeq ($(IE_FPS_TEST),0)
+	@if grep -Eq 'IE_FPS_TEST|ie_fps_test_' $(IE_MAP); then \
+		echo 'production IE map contains FPS test-seam symbols' >&2; exit 1; \
 	fi
 endif
