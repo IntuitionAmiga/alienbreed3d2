@@ -248,9 +248,6 @@ Audio:
 | `0xF0BC4` | MOD file length |
 | `0xF0BC8` | MOD control (`1` start, `2` stop/reset, `4` loop; IE writes `5`) |
 | `0xF0BCC` | MOD status |
-| `0xF0E20` | SID file pointer |
-| `0xF0E24` | SID file length |
-| `0xF0E28` | SID control (`1` start, `2` stop/reset, `4` loop; IE writes `5`) |
 | `0xF0E80+` | IE SFX/sample playback path used by the platform layer |
 
 Runtime control:
@@ -440,8 +437,8 @@ make -f ie/Makefile ie68-redux-high
 
 Expected diagnostic coverage includes path resolution, render pointers, palette
 and texture hashes, lighting/debug flags, wall-brightness scratch values,
-framebuffer histograms, freeze/progress sampling, and MOD/SID playback
-registers. The local Redux scripts default to `ab3d2_ie68_redux_high.ie68`. If
+framebuffer histograms, freeze/progress sampling, and MOD playback registers.
+The local Redux scripts default to `ab3d2_ie68_redux_high.ie68`. If
 the IEScript host predefines `IE_TARGET` or `TARGET`, that value is loaded
 instead.
 
@@ -462,8 +459,7 @@ Key IE files:
 - `controlloop.s`: IE startup/menu/game outer-loop flow selected by `IS_IE`.
 - `ie_file_io_runtime.i`: embedded-pack loader, File MMIO fallback and media
   path normalisation.
-- `ie_music.i`: legacy `mt_*` entrypoints backed by IE MOD MMIO with SID
-  fallback.
+- `ie_music.i`: legacy `mt_*` entrypoints backed by IE MOD MMIO.
 - `tools/normalize_media.sh`: prepares the original local media layout.
 - `tools/convert_menu_assets.py`: converts original planar menu art and
   palettes into IE CLUT8 build artifacts.

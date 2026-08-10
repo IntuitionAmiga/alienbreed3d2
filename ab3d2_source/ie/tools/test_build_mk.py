@@ -1,5 +1,6 @@
 import os
 import pathlib
+import re
 import subprocess
 import unittest
 
@@ -118,6 +119,19 @@ class VariantInventoryTests(unittest.TestCase):
     def test_build_fragment_contains_no_retired_high_resolution_interface(self) -> None:
         source = (REPO_ROOT / "ie/build.mk").read_text()
         self.assertNotIn("over" + "drive", source.lower())
+
+    def test_port_contains_no_retired_music_backend_interface(self) -> None:
+        token = "s" + "id"
+        for relative in (
+            "ie/build.mk",
+            "ie/platform/ie_music.i",
+            "ie/README.md",
+        ):
+            source = (REPO_ROOT / relative).read_text().lower()
+            self.assertIsNone(
+                re.search(rf"\b{token}\b|{token}_|f0e2[0-9a-f]", source),
+                relative,
+            )
 
 
 class PackedImageTargetTests(unittest.TestCase):

@@ -68,10 +68,6 @@ else
 $(error Unsupported IE_BLITTER_TEST=$(IE_BLITTER_TEST); use 0 or 1)
 endif
 
-ifneq ($(origin IE_ENABLE_SID_MUSIC),undefined)
-$(error IE_ENABLE_SID_MUSIC is no longer supported; level MOD music is required)
-endif
-
 ifeq ($(MEDIA_PROFILE),original)
 else ifeq ($(MEDIA_PROFILE),redux-high)
 IE_PROFILE_INCLUDES += -I$(IE_MEDIA_PROFILE_DIR)/includes

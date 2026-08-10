@@ -14,7 +14,6 @@ ie_LoadLevelMusic:
 
 mt_init:
 				move.l	#2,$F0BC8
-				move.l	#2,$F0E28
 				move.l	mt_data,d0
 				bne.s	.have_level_music
 				bsr		ie_LoadLevelMusic
@@ -34,7 +33,6 @@ mt_init:
 				rts
 
 mt_end:
-				move.l	#2,$F0E28
 				move.l	#2,$F0BC8
 				clr.l	mt_size
 				rts
