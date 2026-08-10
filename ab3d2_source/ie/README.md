@@ -381,8 +381,9 @@ add player-two controller support.
 | LB, RB, Start | Run, next weapon, pause |
 
 Axes are digital. They engage at 8192 and release below 6144, providing
-hysteresis around the dead zone. Use, duck, next weapon, and pause continue to
-use the existing AB3D2 edge handling.
+hysteresis around the dead zone. Use remains asserted while X is held so the
+existing player-control edge detector cannot miss it. Duck, next weapon, and
+pause use controller-layer pulses where their consumers require them.
 
 `make -f ie/Makefile ie68-gamepad-test` builds a test-only variant whose
 controller reader can consume a guest-RAM snapshot and runs
@@ -391,9 +392,15 @@ the automated target requires no display or physical controller. Production
 builds contain no snapshot input path.
 Real-device results are recorded in `ie/GAMEPAD_ACCEPTANCE.md` using the
 non-headless build. Run `make -f ie/Makefile ie68-gamepad-acceptance` to copy
-the manual acceptance script beside the production `.ie68` binary and launch
-the GUI. The script keeps the engine session alive but does not synthesise any
-input.
+the manual acceptance script beside the Redux High `.ie68` binary and launch
+that profile in the GUI. Redux High is required because the level-one switch
+scenario is not present in the original profile. The script does not synthesise
+input. It records canonical button and axis transitions in
+`ie/bin/gamepad-live.result`, using positional face-button names so the output
+remains valid for different printed controller layouts.
+Press and release every physical button, close the engine, then inspect that
+result file. Hold each tested input for at least one second; the diagnostic
+samples twice per second to avoid materially slowing gameplay.
 
 `make -f ie/Makefile ie68-blitter-test` builds a test-only Redux High variant
 and runs it with the headless engine. The diagnostic checks guarded strided fills,

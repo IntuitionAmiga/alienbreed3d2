@@ -79,6 +79,35 @@ class GamepadTargetTests(unittest.TestCase):
         output = dry_run(target="ie68-gamepad-acceptance")
         self.assertIn("../../IntuitionEngine/bin/IntuitionEngine --script-owned-term", output)
         self.assertNotIn("../../IntuitionEngine/bin/ie_headless --script-owned-term", output)
+        self.assertIn("MEDIA_PROFILE=redux-high", output)
+        self.assertIn("ab3d2_ie68_redux_high.ie68", output)
+        self.assertNotIn("-script ie/bin/gamepad_acceptance.ies ie/bin/ab3d2_ie68.ie68", output)
+
+    def test_manual_acceptance_records_canonical_live_input(self) -> None:
+        script = (REPO_ROOT / "ie/gamepad_acceptance.ies").read_text()
+        self.assertIn("GAMEPAD_STATUS", script)
+        self.assertIn("GAMEPAD_PAD0", script)
+        self.assertIn("gamepad-live.result", script)
+        self.assertIn("canonical_bits", script)
+        self.assertIn('require("gamepad_acceptance_symbols")', script)
+        self.assertIn("ie_gamepad_actions_w", script)
+        self.assertIn("Plr1_TmpSpcTap_b", script)
+        self.assertIn("Conditions", script)
+        self.assertIn("sys.wait_ms(500)", script)
+        output = dry_run(target="ie68-gamepad-acceptance")
+        self.assertIn("gamepad_acceptance_symbols.lua", output)
+        self.assertIn(
+            "cp _build/diag_symbols_ie68_redux_high.lua "
+            "ie/bin/gamepad_acceptance_symbols.lua",
+            output,
+        )
+        self.assertNotIn(
+            "cp ie/diag_symbols.lua ie/bin/gamepad_acceptance_symbols.lua",
+            output,
+        )
+        self.assertNotIn("Xbox", script)
+        self.assertNotIn("Nintendo", script)
+        self.assertNotIn("PlayStation", script)
 
     def test_automated_runner_override_skips_sibling_engine_build(self) -> None:
         output = dry_run(

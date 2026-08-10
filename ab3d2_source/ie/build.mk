@@ -235,9 +235,10 @@ endif
 		echo 'ie68-blitter-test: diagnostic did not report success' >&2; exit 1; \
 	}
 
-ie68-gamepad-acceptance: ie68
+ie68-gamepad-acceptance: ie68-redux-high
 	@cp ie/gamepad_acceptance.ies $(IE_BIN_DIR)/gamepad_acceptance.ies
-	@IE_NO_IPC=1 $(IE_GAMEPAD_ACCEPTANCE_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/gamepad_acceptance.ies $(IE_BIN_DIR)/ab3d2_ie68.ie68
+	@cp $(BUILD_DIR)/diag_symbols_ie68_redux_high.lua $(IE_BIN_DIR)/gamepad_acceptance_symbols.lua
+	@IE_NO_IPC=1 $(IE_GAMEPAD_ACCEPTANCE_ENGINE) --script-owned-term -file-root "$$PWD" -script $(IE_BIN_DIR)/gamepad_acceptance.ies $(IE68_REDUX_HIGH)
 
 $(IE_MENU_BUILD_DIR)/menu_assets.stamp: menu/back2.raw menu/credits_only.raw menu/font16x16.raw2 menu/back.pal menu/firepal.pal2 menu/font16x16.pal2 ie/tools/convert_menu_assets.py
 	$(info Converting IE menu assets)

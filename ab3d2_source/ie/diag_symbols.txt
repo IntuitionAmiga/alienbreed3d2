@@ -22,6 +22,13 @@ ie_palette_apply_channel
 ie_game_stage
 ie_game_quit_from_stage
 ie_menu_active
+ie_gamepad_actions_w
+operate_key
+_KeyMap_vb
+Plr1_Used_b
+Plr1_TmpSpcTap_b
+plr_PrevUseKeyState_b
+Conditions
 _Game_LevelBegin
 mnu_row
 ie_menu_last_buttons

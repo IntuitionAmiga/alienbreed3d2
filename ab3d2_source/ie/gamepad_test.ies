@@ -236,7 +236,6 @@ for _, item in ipairs(held_buttons) do
 end
 
 local edge_buttons = {
-    {0x00000040, 9, "X/use"},
     {0x00000020, 10, "B/duck"},
     {0x00000200, 13, "RB/next weapon"},
 }
@@ -258,6 +257,34 @@ for _, item in ipairs(edge_buttons) do
         item[3] .. ": disconnect did not clear edge state, count=" .. after_disconnect)
     set_snapshot(1, 0)
 end
+
+-- Use is edge-detected by plr_KeyboardControl. The controller layer must hold
+-- its synthetic operate key long enough for that gameplay consumer to see it,
+-- while a held button must still produce only one use event.
+local operate_raw, use_before = inspect(function()
+    return rd8(S.operate_key), rd32(S.ie_gamepad_test_use_events_l)
+end)
+set_snapshot(1, 0x00000040)
+wait_key(operate_raw, 0xff, "X/use press")
+wait_counter(S.ie_gamepad_test_use_events_l, use_before, "X/use gameplay delivery")
+sys.wait_ms(200)
+local use_held = inspect(function() return rd32(S.ie_gamepad_test_use_events_l) end)
+expect(use_held == use_before + 1,
+    "X/use repeated while held, count=" .. use_held .. " before=" .. use_before)
+set_snapshot(1, 0)
+wait_key(operate_raw, 0, "X/use release")
+set_snapshot(1, 0x00000040)
+wait_counter(S.ie_gamepad_test_use_events_l, use_held, "X/use second gameplay delivery")
+clear_pad("X/use disconnect")
+
+-- Keyboard and controller remain additive owners of the operate key too.
+term.scancode(keys.F)
+wait_key(operate_raw, 0xff, "keyboard operate press")
+set_snapshot(1, 0x00000040)
+set_snapshot(1, 0)
+wait_key(operate_raw, 0xff, "controller release cancelled keyboard operate")
+term.scancode(keys.F + 0x80)
+wait_key(operate_raw, 0, "keyboard operate release")
 
 local directions = {
     {"left Y up", 0, -1, 0, 0, 0x0001},

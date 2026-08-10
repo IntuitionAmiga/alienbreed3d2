@@ -1,5 +1,6 @@
 _KeyMap_vb
 forward_key
+operate_key
 _ReadJoy1
 _Game_LevelBegin
 Plr1_JoystickControl
@@ -18,6 +19,7 @@ ie_gamepad_test_last_actions_w
 ie_gamepad_test_read_count_l
 ie_gamepad_test_level_begin_l
 ie_gamepad_test_plr1_mouse_l
+ie_gamepad_test_use_events_l
 ie_gamepad_test_menu_up_l
 ie_gamepad_test_menu_down_l
 ie_gamepad_test_menu_wait_l

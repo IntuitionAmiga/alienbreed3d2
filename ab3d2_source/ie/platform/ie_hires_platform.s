@@ -81,6 +81,7 @@
 	xdef ie_gamepad_test_read_count_l
 	xdef ie_gamepad_test_level_begin_l
 	xdef ie_gamepad_test_plr1_mouse_l
+	xdef ie_gamepad_test_use_events_l
 	xdef ie_gamepad_test_menu_up_l
 	xdef ie_gamepad_test_menu_down_l
 	xdef ie_gamepad_test_menu_wait_l
@@ -1445,7 +1446,7 @@ ie_gamepad_apply:
 	move.l	#JOY_X,d0
 	move.b	operate_key,d1
 	moveq	#IE_PAD_USE,d2
-	bsr		ie_gamepad_map_edge_button
+	bsr		ie_gamepad_map_button
 	move.l	#JOY_B,d0
 	move.b	duck_key,d1
 	moveq	#IE_PAD_DUCK,d2
@@ -1535,9 +1536,10 @@ ie_gamepad_map_button:
 	bsr		ie_gamepad_button_pressed
 	bra		ie_gamepad_set_action
 
-; Use, duck and next-weapon are one press events.  In particular, the
-; AB3D2 duck handler consumes its key, so a held controller button must not
-; recreate it on the next frame.
+; Duck and next-weapon are one press events.  In particular, the AB3D2 duck
+; handler consumes its key, so a held controller button must not recreate it
+; on the next frame.  Use is level-mapped above because plr_KeyboardControl
+; already performs its own rising-edge detection.
 ie_gamepad_map_edge_button:
 	bsr		ie_gamepad_button_pressed
 	tst.b	d0
@@ -1932,6 +1934,8 @@ ie_gamepad_test_read_count_l:
 ie_gamepad_test_level_begin_l:
 	dc.l	0
 ie_gamepad_test_plr1_mouse_l:
+	dc.l	0
+ie_gamepad_test_use_events_l:
 	dc.l	0
 ie_gamepad_test_menu_up_l:
 	dc.l	0
