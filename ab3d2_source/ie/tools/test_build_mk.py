@@ -19,6 +19,17 @@ def dry_run(*assignments: str, target: str = "ie68-jit-progress-test") -> str:
 
 
 class JITProgressTargetTests(unittest.TestCase):
+    def test_progress_target_uses_the_overdrive_redux_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0")
+        self.assertIn("IE_OVERDRIVE=1", output)
+        self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
+        self.assertNotIn("ie68-redux-high", output)
+        self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
+
+    def test_overdrive_progress_script_uses_its_supported_headless_floor(self) -> None:
+        script = (REPO_ROOT / "ie/bin/ab3d2_ie68_guest_progress.ies").read_text()
+        self.assertIn("local minimum_guest_ticks_per_second = 5", script)
+
     def test_overridden_runner_does_not_build_sibling_engine(self) -> None:
         output = dry_run("IE_HEADLESS_ENGINE=/opt/ie/bin/ie_headless")
         self.assertNotIn("make -C ../../IntuitionEngine headless", output)
@@ -84,6 +95,14 @@ class BlitterTargetTests(unittest.TestCase):
             target="ie68",
         )
         self.assertIn("production IE map contains blitter test-seam symbols", output)
+
+
+class VariantInventoryTests(unittest.TestCase):
+    def test_all_target_does_not_build_the_retired_standard_redux_image(self) -> None:
+        output = dry_run("IE_BUILD_HEADLESS=0", target="ie68-all")
+        self.assertIn("ab3d2_ie68_redux_high_overdrive.ie68", output)
+        self.assertNotIn("ie68-redux-high", output)
+        self.assertNotIn("ab3d2_ie68_redux_high.ie68", output)
 
 
 if __name__ == "__main__":

@@ -18,7 +18,7 @@ else
 IE_BUILD_GAMEPAD_ENGINE ?= 0
 endif
 IE_GAMEPAD_ACCEPTANCE_ENGINE ?= $(IE_ENGINE)
-IE68_REDUX_HIGH ?= $(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68
+IE68_REDUX_HIGH_OVERDRIVE ?= $(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68
 IE68_JIT_PROGRESS_SCRIPT ?= $(IE_BIN_DIR)/ab3d2_ie68_guest_progress.ies
 IE_DIAG_SYMBOLS_FILE ?= ie/diag_symbols.txt
 IE_DIAG_SYMBOL_NAMES = $(shell cat $(IE_DIAG_SYMBOLS_FILE) 2>/dev/null)
@@ -88,7 +88,7 @@ else
 $(error Unsupported MEDIA_PROFILE=$(MEDIA_PROFILE); use original or redux-high)
 endif
 
-.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-redux-high ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
+.PHONY: ie68 ie68_sw ie68-all ie68-overdrive ie68-jit-progress-test ie68-gamepad-test ie68-gamepad-acceptance ie68-fps-test ie68-blitter-test \
 	ie-source-overlay ie-patches-check ie-source-overlay-test ie-prose-check
 
 ie68: ie68_sw
@@ -108,21 +108,17 @@ ie-prose-check:
 ie68-all:
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68.ie68 IE_MAP=$(BUILD_DIR)/ie68.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68.lua
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-overdrive
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68-redux-high
 	@cp $(BUILD_DIR)/diag_symbols_ie68.lua ie/diag_symbols.lua
 
 ie68-overdrive:
 	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 IE_OVERDRIVE=1 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high_overdrive.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high_overdrive.map IE_SYMBOLS=$(BUILD_DIR)/diag_symbols_ie68_redux_high_overdrive.lua
 
-ie68-redux-high:
-	$(MAKE) -f $(IE_ENTRY_MAKEFILE) ie68 MEDIA_PROFILE=redux-high IE_TARGET=$(IE_BIN_DIR)/ab3d2_ie68_redux_high.ie68 IE_MAP=$(BUILD_DIR)/ie68_redux_high.map
-
-ie68-jit-progress-test: ie68-redux-high
+ie68-jit-progress-test: ie68-overdrive
 ifeq ($(IE_BUILD_HEADLESS),1)
 	$(MAKE) -C $(IE_ENGINE_SOURCE) headless
 endif
 	@log=$$(mktemp); trap 'rm -f "$$log"' EXIT; \
-	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) -file-root "$$PWD" -script $(IE68_JIT_PROGRESS_SCRIPT) $(IE68_REDUX_HIGH) >"$$log" 2>&1; then \
+	if ! IE_NO_IPC=1 $(IE_HEADLESS_ENGINE) -file-root "$$PWD" -script $(IE68_JIT_PROGRESS_SCRIPT) $(IE68_REDUX_HIGH_OVERDRIVE) >"$$log" 2>&1; then \
 		cat "$$log"; exit 1; \
 	fi; \
 	cat "$$log"; \

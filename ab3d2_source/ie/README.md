@@ -11,8 +11,7 @@ Paula, CIA, or real Amiga custom-chip MMIO.
 - Platform layer: `ab3d2_source/ie/platform/ie_hires_platform.s`.
 - Binary format: raw `.ie68` linked at `0x001000`.
 - Build target: `make -f ie/Makefile ie68` from `ab3d2_source/`.
-- Overdrive build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
-- Redux convenience target: `make -f ie/Makefile ie68-redux-high` from `ab3d2_source/`.
+- Redux build target: `make -f ie/Makefile ie68-overdrive` from `ab3d2_source/`.
 - Default output: `ab3d2_source/ie/bin/ab3d2_ie68.ie68`.
 - Overdrive output: `ab3d2_source/ie/bin/ab3d2_ie68_redux_high_overdrive.ie68`.
 - Raw `.ie68` runtime cwd: run Intuition Engine from `ab3d2_source/` so raw
@@ -31,7 +30,6 @@ From `ab3d2_source/`:
 ```sh
 make -f ie/Makefile ie68               # original profile
 make -f ie/Makefile ie68-overdrive     # Redux high + Overdrive 1920x1080 presentation
-make -f ie/Makefile ie68-redux-high    # Redux high profile
 make -f ie/Makefile ie68-all           # build every variant above
 ```
 
@@ -79,11 +77,11 @@ artifacts:
 
 ### Redux/Overdrive prerequisites
 
-The Redux and Overdrive targets require the Redux data checkout at
+The Redux target requires the Redux data checkout at
 `karlos-tkg-main/` in the `alienbreed3d2` repository root. The expected data
 root is `karlos-tkg-main/Game`, and the build prepares the selected profile
 under `ab3d2_source/_build/ie_media/`. This requirement applies to building the
-raw Redux and Overdrive `.ie68` artifacts; the packaged runtime binaries
+raw Redux `.ie68` artifact; the packaged runtime binaries
 already contain the prepared Karlos-TKG-High program and assets.
 
 ### Pipeline overview
@@ -123,13 +121,11 @@ the Amiga code. Fresh local builds emit to `ab3d2_source/ie/bin/`.
 | Binary | Profile |
 |--------|---------|
 | `ab3d2_ie68.ie68` | Original |
-| `ab3d2_ie68_redux_high.ie68` | Redux high |
 | `ab3d2_ie68_redux_high_overdrive.ie68` | Redux high Overdrive |
 
 ### Packaged runtime binaries
 
-Twelve platform-specific packaged runtime binaries named
-`IntuitionEngine-AB3D2-Karlos-TKG-High-*` and
+Six platform-specific packaged runtime binaries named
 `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-*` are distributed in
 `IntuitionEngine-AB3D2-Karlos-TKG-High.zip` (~450 MB) hosted at:
 
@@ -147,12 +143,6 @@ checkout at runtime. End-user instructions for these binaries live in
 
 | Binary | Host |
 |--------|------|
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-amd64` | macOS Intel |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-darwin-arm64` | macOS Apple Silicon |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-amd64` | Linux x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-linux-arm64` | Linux ARM64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-amd64.exe` | Windows x86-64 |
-| `IntuitionEngine-AB3D2-Karlos-TKG-High-windows-arm64.exe` | Windows ARM64 |
 | `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-amd64` | macOS Intel |
 | `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-darwin-arm64` | macOS Apple Silicon |
 | `IntuitionEngine-AB3D2-Karlos-TKG-High-Overdrive-linux-amd64` | Linux x86-64 |
@@ -454,13 +444,13 @@ drive gameplay, sample renderer/audio state and dump framebuffer histograms.
 Build the desired profile first, then run the scripts from `ab3d2_source`:
 
 ```sh
-make -f ie/Makefile ie68-redux-high
+make -f ie/Makefile ie68-overdrive
 ```
 
 Expected diagnostic coverage includes path resolution, render pointers, palette
 and texture hashes, lighting/debug flags, wall-brightness scratch values,
 framebuffer histograms, freeze/progress sampling, and MOD/SID playback
-registers. The local Redux scripts default to `ab3d2_ie68_redux_high.ie68`. If
+registers. The local Redux scripts default to `ab3d2_ie68_redux_high_overdrive.ie68`. If
 the IEScript host predefines `IE_TARGET` or `TARGET`, that value is loaded
 instead.
 
